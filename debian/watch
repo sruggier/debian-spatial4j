@@ -1,0 +1,2 @@
+version=3
+https://github.com/spatial4j/spatial4j/releases .*/spatial4j-(\d.*)\.tar\..*

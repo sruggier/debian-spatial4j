@@ -1,0 +1,19 @@
+Source: spatial4j
+Section: java
+Priority: optional
+Maintainer: Hilko Bengen <bengen@debian.org>
+Build-Depends: debhelper (>= 9), default-jdk, maven-debian-helper (>= 1.6.5),
+ libmaven-install-plugin-java,
+ libjts-java,
+Standards-Version: 3.9.5
+
+Package: libspatial4j-java
+Architecture: all
+Depends: ${misc:Depends}, ${maven:Depends}
+Recommends: ${maven:OptionalDepends}
+Description: spatial/geospatial Java library
+ Spatial4j is a general purpose spatial / geospatial Java library.
+ It's core capabilities are 3-fold: to provide common
+ geospatially-aware shapes, to provide distance calculations and other
+ math, and to read and write the shapes to strings.
+

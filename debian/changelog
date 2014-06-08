@@ -1,0 +1,5 @@
+spatial4j (0.3-1) unstable; urgency=low
+
+  * Initial release (Closes: #736653)
+
+ -- Hilko Bengen <bengen@debian.org>  Sun, 08 Jun 2014 17:17:39 +0200

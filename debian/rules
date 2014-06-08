@@ -1,0 +1,10 @@
+#!/usr/bin/make -f
+
+JAVA_HOME := /usr/lib/jvm/default-java
+
+%:
+	dh $@ --buildsystem=maven
+
+override_dh_auto_configure:
+	dh_auto_configure
+	mvn install:install-file -s/etc/maven2/settings-debian.xml -Dmaven.repo.local=`pwd`/debian/maven-repo -Dfile=/usr/share/java/jts.jar -DgroupId=com.vividsolutions -DartifactId=jts -Dversion=fake -Dpackaging=jar
