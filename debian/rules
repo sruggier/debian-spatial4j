@@ -1,10 +1,21 @@
 #!/usr/bin/make -f
 
+include /usr/share/cdbs/1/rules/debhelper.mk
+include /usr/share/cdbs/1/class/maven.mk
+pkg=$(firstword $(DEB_ALL_PACKAGES))
+
 JAVA_HOME := /usr/lib/jvm/default-java
+# DEB_MAVEN_DOC_TARGET := javadoc:javadoc javadoc:aggregate
 
-%:
-	dh $@ --buildsystem=maven
+get-orig-source:
+	uscan --download-version $(DEB_UPSTREAM_VERSION) --force-download --rename
 
-override_dh_auto_configure:
-	dh_auto_configure
+post-patches::
+	# libjts-java ships without a maven pom, so install a fake one
 	mvn install:install-file -s/etc/maven2/settings-debian.xml -Dmaven.repo.local=`pwd`/debian/maven-repo -Dfile=/usr/share/java/jts.jar -DgroupId=com.vividsolutions -DartifactId=jts -Dversion=fake -Dpackaging=jar
+
+install/$(pkg)::
+	# --no-usj-versionless does not to what the comment in the
+	# --generated .poms file claims.
+	mv debian/$(pkg)/usr/share/java/spatial4j.jar \
+	   debian/$(pkg)/usr/share/java/spatial4j-0.4.1.jar

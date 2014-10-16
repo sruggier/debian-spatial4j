@@ -1,13 +1,14 @@
-Source: spatial4j
+Source: spatial4j-0.4
 Section: java
 Priority: optional
 Maintainer: Hilko Bengen <bengen@debian.org>
 Build-Depends: debhelper (>= 9), default-jdk, maven-debian-helper (>= 1.6.5),
- libmaven-install-plugin-java,
+ cdbs,
+ libmaven-install-plugin-java, libmaven-bundle-plugin-java,
  libjts-java,
-Standards-Version: 3.9.5
+Standards-Version: 3.9.6
 
-Package: libspatial4j-java
+Package: libspatial4j-0.4-java
 Architecture: all
 Depends: ${misc:Depends}, ${maven:Depends}
 Recommends: ${maven:OptionalDepends}
