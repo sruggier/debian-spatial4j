@@ -6,7 +6,7 @@
  * (the "License"); you may not use this file except in compliance with
  * the License.  You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -22,6 +22,9 @@ import com.spatial4j.core.distance.DistanceUtils;
 import com.spatial4j.core.shape.Point;
 import com.spatial4j.core.shape.Rectangle;
 import com.spatial4j.core.shape.SpatialRelation;
+
+import java.util.Formatter;
+import java.util.Locale;
 
 /**
  * A circle as it exists on the surface of a sphere.
@@ -49,10 +52,12 @@ public class GeoCircle extends CircleImpl {
       double backDistDEG = 180 - radiusDEG;
       if (backDistDEG > 0) {
         double backRadius = 180 - radiusDEG;
-        //shrink inverseCircle as small as possible to avoid accidental overlap
-        backRadius -= Math.ulp(backRadius);
         double backX = DistanceUtils.normLonDEG(getCenter().getX() + 180);
         double backY = DistanceUtils.normLatDEG(getCenter().getY() + 180);
+        //Shrink inverseCircle as small as possible to avoid accidental overlap.
+        // Note that this is tricky business to come up with a value small enough
+        // but not too small or else numerical conditioning issues become a problem.
+        backRadius -= Math.max(Math.ulp(Math.abs(backY)+backRadius), Math.ulp(Math.abs(backX)+backRadius));
         if (inverseCircle != null) {
           inverseCircle.reset(backX, backY, backRadius);
         } else {
@@ -90,11 +95,6 @@ public class GeoCircle extends CircleImpl {
   @Override
   protected SpatialRelation relateRectanglePhase2(Rectangle r, SpatialRelation bboxSect) {
 
-    //Rectangle wraps around the world longitudinally creating a solid band; there are no corners to test intersection
-    if (r.getWidth() == 360) {
-      return SpatialRelation.INTERSECTS;
-    }
-
     if (inverseCircle != null) {
       return inverseCircle.relate(r).inverse();
     }
@@ -107,6 +107,11 @@ public class GeoCircle extends CircleImpl {
     //This is an optimization path for when there are no dateline or pole issues.
     if (!enclosingBox.getCrossesDateLine() && !r.getCrossesDateLine()) {
       return super.relateRectanglePhase2(r, bboxSect);
+    }
+
+    //Rectangle wraps around the world longitudinally creating a solid band; there are no corners to test intersection
+    if (r.getWidth() == 360) {
+      return SpatialRelation.INTERSECTS;
     }
 
     //do quick check to see if all corners are within this circle for CONTAINS
@@ -152,7 +157,7 @@ public class GeoCircle extends CircleImpl {
       return SpatialRelation.CONTAINS;
 
     //Check if r is within the pole wrap region:
-    double yTop = getCenter().getY()+ radiusDEG;
+    double yTop = getCenter().getY() + radiusDEG;
     if (yTop > 90) {
       double yTopOverlap = yTop - 90;
       assert yTopOverlap <= 90;
@@ -230,7 +235,8 @@ public class GeoCircle extends CircleImpl {
   public String toString() {
     //Add distance in km, which may be easier to recognize.
     double distKm = DistanceUtils.degrees2Dist(radiusDEG,  DistanceUtils.EARTH_MEAN_RADIUS_KM);
-    String dStr = String.format("%.1f\u00B0 %.2fkm", radiusDEG, distKm);
+    //instead of String.format() so that we get consistent output no matter the locale
+    String dStr = new Formatter(Locale.ROOT).format("%.1f\u00B0 %.2fkm", radiusDEG, distKm).toString();
     return "Circle(" + point + ", d=" + dStr + ')';
   }
 }

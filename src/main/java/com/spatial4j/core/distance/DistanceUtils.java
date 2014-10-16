@@ -6,7 +6,7 @@
  * (the "License"); you may not use this file except in compliance with
  * the License.  You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,20 +23,30 @@ import com.spatial4j.core.shape.Rectangle;
 
 
 /**
- * Various distance calculations and constants.
- * Originally from Lucene 3x's old spatial module. It has been modified here.
+ * Various distance calculations and constants. To the extent possible, a {@link
+ * com.spatial4j.core.distance.DistanceCalculator}, retrieved from {@link
+ * com.spatial4j.core.context.SpatialContext#getDistCalc()} should be used in preference to calling
+ * these methods directly.
+ * <p/>
+ * This code came from <a href="https://issues.apache.org/jira/browse/LUCENE-1387">Apache
+ * Lucene, LUCENE-1387</a>, which in turn came from "LocalLucene".
  */
 public class DistanceUtils {
 
   //pre-compute some angles that are commonly used
-  public static final double DEG_45_AS_RADS = Math.PI / 4.0;
+  @Deprecated
+  public static final double DEG_45_AS_RADS = Math.PI / 4;
+  @Deprecated
   public static final double SIN_45_AS_RADS = Math.sin(DEG_45_AS_RADS);
+
   public static final double DEG_90_AS_RADS = Math.PI / 2;
   public static final double DEG_180_AS_RADS = Math.PI;
+  @Deprecated
   public static final double DEG_225_AS_RADS = 5 * DEG_45_AS_RADS;
+  @Deprecated
   public static final double DEG_270_AS_RADS = 3 * DEG_90_AS_RADS;
 
-  public static final double DEGREES_TO_RADIANS =  Math.PI / 180.0;
+  public static final double DEGREES_TO_RADIANS =  Math.PI / 180;
   public static final double RADIANS_TO_DEGREES =  1 / DEGREES_TO_RADIANS;
 
   public static final double KM_TO_MILES = 0.621371192;
@@ -50,35 +60,46 @@ public class DistanceUtils {
   public static final double EARTH_MEAN_RADIUS_KM = 6371.0087714;
   public static final double EARTH_EQUATORIAL_RADIUS_KM = 6378.1370;
 
+  /** Equivalent to degrees2Dist(1, EARTH_MEAN_RADIUS_KM) */
+  public static final double DEG_TO_KM = DEGREES_TO_RADIANS * EARTH_MEAN_RADIUS_KM;
+  public static final double KM_TO_DEG = 1 / DEG_TO_KM;
+
   public static final double EARTH_MEAN_RADIUS_MI = EARTH_MEAN_RADIUS_KM * KM_TO_MILES;
   public static final double EARTH_EQUATORIAL_RADIUS_MI = EARTH_EQUATORIAL_RADIUS_KM * KM_TO_MILES;
 
   private DistanceUtils() {}
 
   /**
-   * Calculate the p-norm (i.e. length) between two vectors
+   * Calculate the p-norm (i.e. length) between two vectors.
+   * <p/>
+   * See <a href="http://en.wikipedia.org/wiki/Lp_space">Lp space</a>
    *
    * @param vec1  The first vector
    * @param vec2  The second vector
    * @param power The power (2 for cartesian distance, 1 for manhattan, etc.)
    * @return The length.
-   *         <p/>
-   *         See http://en.wikipedia.org/wiki/Lp_space
+   *
    * @see #vectorDistance(double[], double[], double, double)
+   *
    */
+  @Deprecated
   public static double vectorDistance(double[] vec1, double[] vec2, double power) {
-    return vectorDistance(vec1, vec2, power, 1.0 / power);
+    //only calc oneOverPower if it's needed
+    double oneOverPower = (power == 0 || power == 1.0 || power == 2.0) ? Double.NaN : 1.0 / power;
+    return vectorDistance(vec1, vec2, power, oneOverPower);
   }
 
   /**
-   * Calculate the p-norm (i.e. length) between two vectors
+   * Calculate the p-norm (i.e. length) between two vectors.
    *
    * @param vec1         The first vector
    * @param vec2         The second vector
    * @param power        The power (2 for cartesian distance, 1 for manhattan, etc.)
-   * @param oneOverPower If you've precalculated oneOverPower and cached it, use this method to save one division operation over {@link #vectorDistance(double[], double[], double)}.
+   * @param oneOverPower If you've pre-calculated oneOverPower and cached it, use this method to save
+   *                     one division operation over {@link #vectorDistance(double[], double[], double)}.
    * @return The length.
    */
+  @Deprecated
   public static double vectorDistance(double[] vec1, double[] vec2, double power, double oneOverPower) {
     double result = 0;
 
@@ -86,12 +107,11 @@ public class DistanceUtils {
       for (int i = 0; i < vec1.length; i++) {
         result += vec1[i] - vec2[i] == 0 ? 0 : 1;
       }
-
-    } else if (power == 1.0) {
+    } else if (power == 1.0) { // Manhattan
       for (int i = 0; i < vec1.length; i++) {
-        result += vec1[i] - vec2[i];
+        result += Math.abs(vec1[i] - vec2[i]);
       }
-    } else if (power == 2.0) {
+    } else if (power == 2.0) { // Cartesian
       result = Math.sqrt(distSquaredCartesian(vec1, vec2));
     } else if (power == Integer.MAX_VALUE || Double.isInfinite(power)) {//infinite norm?
       for (int i = 0; i < vec1.length; i++) {
@@ -116,6 +136,7 @@ public class DistanceUtils {
    * @param upperRight If true, return the coords for the upper right corner, else return the lower left.
    * @return The point, either the upperLeft or the lower right
    */
+  @Deprecated
   public static double[] vectorBoxCorner(double[] center, double[] result, double distance, boolean upperRight) {
     if (result == null || result.length != center.length) {
       result = new double[center.length];
@@ -136,8 +157,6 @@ public class DistanceUtils {
   /**
    * Given a start point (startLat, startLon) and a bearing on a sphere, return the destination point.
    *
-   *
-   *
    * @param startLat The starting point latitude, in radians
    * @param startLon The starting point longitude, in radians
    * @param distanceRAD The distance to travel along the bearing in radians.
@@ -155,10 +174,11 @@ public class DistanceUtils {
     double cosStartLat = Math.cos(startLat);
     double sinAngDist = Math.sin(distanceRAD);
     double sinStartLat = Math.sin(startLat);
-    double lat2 = Math.asin(sinStartLat * cosAngDist +
-            cosStartLat * sinAngDist * Math.cos(bearingRAD));
+    double sinLat2 = sinStartLat * cosAngDist +
+        cosStartLat * sinAngDist * Math.cos(bearingRAD);
+    double lat2 = Math.asin(sinLat2);
     double lon2 = startLon + Math.atan2(Math.sin(bearingRAD) * sinAngDist * cosStartLat,
-            cosAngDist - sinStartLat * Math.sin(lat2));
+            cosAngDist - sinStartLat * sinLat2);
     
     // normalize lon first
     if (lon2 > DEG_180_AS_RADS) {
@@ -290,16 +310,64 @@ public class DistanceUtils {
     //http://gis.stackexchange.com/questions/19221/find-tangent-point-on-circle-furthest-east-or-west
     if (distDEG == 0)
       return lat;
+    // if we don't do this when == 90 or -90, computed result can be (+/-)89.9999 when at pole.
+    //     No biggie but more accurate.
+    else if (lat + distDEG >= 90)
+      return 90;
+    else if (lat - distDEG <= -90)
+      return -90;
+
     double lat_rad = toRadians(lat);
     double dist_rad = toRadians(distDEG);
     double result_rad = Math.asin( Math.sin(lat_rad) / Math.cos(dist_rad));
     if (!Double.isNaN(result_rad))
       return toDegrees(result_rad);
+    //handle NaN (shouldn't happen due to checks earlier)
     if (lat > 0)
       return 90;
     if (lat < 0)
       return -90;
-    return lat;
+    return lat;//0
+  }
+
+  /**
+   * Calculates the degrees longitude distance at latitude {@code lat} to cover
+   * a distance {@code dist}.
+   * <p/>
+   * Used to calculate a new expanded buffer distance to account for skewing
+   * effects for shapes that use the lat-lon space as a 2D plane instead of a
+   * sphere.  The expanded buffer will be sure to cover the intended area, but
+   * the shape is still skewed and so it will cover a larger area.  For latitude
+   * 0 (the equator) the result is the same buffer.  At 60 (or -60) degrees, the
+   * result is twice the buffer, meaning that a shape at 60 degrees is twice as
+   * high as it is wide when projected onto a lat-lon plane even if in the real
+   * world it's equal all around.
+   * <p/>
+   * If the result added to abs({@code lat}) is >= 90 degrees, then skewing is
+   * so severe that the caller should consider tossing the shape and
+   * substituting a spherical cap instead.
+   *
+   * @param lat  latitude in degrees
+   * @param dist distance in degrees
+   * @return longitudinal degrees (x delta) at input latitude that is >= dist
+   *         distance. Will be >= dist and <= 90.
+   */
+  public static double calcLonDegreesAtLat(double lat, double dist) {
+    //This code was pulled out of DistanceUtils.pointOnBearingRAD() and
+    // optimized
+    // for bearing = 90 degrees, and so we can get an intermediate calculation.
+    double distanceRAD = DistanceUtils.toRadians(dist);
+    double startLat = DistanceUtils.toRadians(lat);
+
+    double cosAngDist = Math.cos(distanceRAD);
+    double cosStartLat = Math.cos(startLat);
+    double sinAngDist = Math.sin(distanceRAD);
+    double sinStartLat = Math.sin(startLat);
+
+    double lonDelta = Math.atan2(sinAngDist * cosStartLat,
+        cosAngDist * (1 - sinStartLat * sinStartLat));
+
+    return DistanceUtils.toDegrees(lonDelta);
   }
 
   /**
@@ -310,6 +378,7 @@ public class DistanceUtils {
    * @param vec2 The second point
    * @return The squared cartesian distance
    */
+  @Deprecated
   public static double distSquaredCartesian(double[] vec1, double[] vec2) {
     double result = 0;
     for (int i = 0; i < vec1.length; i++) {
@@ -341,7 +410,7 @@ public class DistanceUtils {
   }
 
   /**
-   * Calculates the distance between two lat/lng's using the Law of Cosines. Due to numeric conditioning
+   * Calculates the distance between two lat-lon's using the Law of Cosines. Due to numeric conditioning
    * errors, it is not as accurate as the Haversine formula for small distances.  But with
    * double precision, it isn't that bad -- <a href="http://www.movable-type.co.uk/scripts/latlong.html">
    *   allegedly 1 meter</a>.

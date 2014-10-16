@@ -6,7 +6,7 @@
  * (the "License"); you may not use this file except in compliance with
  * the License.  You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,94 +17,31 @@
 
 package com.spatial4j.core.shape;
 
-import com.carrotsearch.randomizedtesting.RandomizedTest;
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
+import com.spatial4j.core.TestLog;
 import com.spatial4j.core.context.SpatialContext;
 import com.spatial4j.core.distance.DistanceCalculator;
 import com.spatial4j.core.distance.DistanceUtils;
 import com.spatial4j.core.shape.impl.PointImpl;
 import com.spatial4j.core.shape.impl.RectangleImpl;
+import org.junit.Rule;
 import org.junit.Test;
 
-import java.util.ArrayList;
-import java.util.List;
-
-import static com.spatial4j.core.shape.SpatialRelation.*;
+import static com.spatial4j.core.shape.SpatialRelation.CONTAINS;
+import static com.spatial4j.core.shape.SpatialRelation.DISJOINT;
 
 
-public abstract class AbstractTestShapes extends RandomizedTest {
-
-  protected final SpatialContext ctx;
-  private static final double EPS = 10e-9;
+/**
+ * Some basic tests that should work with various {@link SpatialContext}
+ * configurations.  Subclasses add more.
+ */
+public abstract class AbstractTestShapes extends RandomizedShapeTest {
 
   public AbstractTestShapes(SpatialContext ctx) {
-    this.ctx = ctx;
+    super(ctx);
   }
 
-  //These few norm methods normalize the arguments for creating a shape to
-  // account for the dateline. Some tests loop past the dateline or have offsets
-  // that go past it and it's easier to have them coded that way and correct for
-  // it here.  These norm methods should be used when needed, not frivolously.
-
-  protected double normX(double x) {
-    return ctx.isGeo() ? DistanceUtils.normLonDEG(x) : x;
-  }
-  protected double normY(double y) {
-    return ctx.isGeo() ? DistanceUtils.normLatDEG(y) : y;
-  }
-
-  protected Rectangle makeNormRect(double minX, double maxX, double minY, double maxY) {
-    if (ctx.isGeo()) {
-      if (Math.abs(maxX - minX) >= 360) {
-        minX = -180;
-        maxX = 180;
-      } else {
-        minX = DistanceUtils.normLonDEG(minX);
-        maxX = DistanceUtils.normLonDEG(maxX);
-      }
-    }
-    return ctx.makeRectangle(minX, maxX, minY, maxY);
-  }
-
-  protected void assertRelation(String msg, SpatialRelation expected, Shape a, Shape b) {
-    msg = a+" intersect "+b;//use different msg
-    _assertIntersect(msg,expected,a,b);
-    //check flipped a & b w/ transpose(), while we're at it
-    _assertIntersect("(transposed) " + msg, expected.transpose(), b, a);
-  }
-
-  private void _assertIntersect(String msg, SpatialRelation expected, Shape a, Shape b) {
-    SpatialRelation sect = a.relate(b);
-    if (sect == expected)
-      return;
-    if (expected == WITHIN || expected == CONTAINS) {
-      if (a.getClass().equals(b.getClass())) // they are the same shape type
-        assertEquals(msg,a,b);
-      else {
-        //they are effectively points or lines that are the same location
-        assertTrue(msg,!a.hasArea());
-        assertTrue(msg,!b.hasArea());
-
-        Rectangle aBBox = a.getBoundingBox();
-        Rectangle bBBox = b.getBoundingBox();
-        if (aBBox.getHeight() == 0 && bBBox.getHeight() == 0
-            && (aBBox.getMaxY() == 90 && bBBox.getMaxY() == 90
-          || aBBox.getMinY() == -90 && bBBox.getMinY() == -90))
-          ;//== a point at the pole
-        else
-          assertEquals(msg, aBBox, bBBox);
-      }
-    } else {
-      assertEquals(msg,expected,sect);
-    }
-  }
-
-  private void assertEqualsRatio(String msg, double expected, double actual) {
-    double delta = Math.abs(actual - expected);
-    double base = Math.min(actual, expected);
-    double deltaRatio = base==0 ? delta : Math.min(delta,delta / base);
-    assertEquals(msg,0,deltaRatio, EPS);
-  }
+  @Rule
+  public final TestLog testLog = TestLog.instance;
 
   protected void testRectangle(double minX, double width, double minY, double height) {
     double maxX = minX + width;
@@ -217,62 +154,45 @@ public abstract class AbstractTestShapes extends RandomizedTest {
   }
 
   protected void testCircleIntersect() {
-    //Now do some randomized tests:
-    int i_C = 0, i_I = 0, i_W = 0, i_O = 0;//counters for the different intersection cases
-    int laps = 0;
-    int MINLAPSPERCASE = 20 * (int)multiplier();
-    while(i_C < MINLAPSPERCASE || i_I < MINLAPSPERCASE || i_W < MINLAPSPERCASE || i_O < MINLAPSPERCASE) {
-      laps++;
-      final int TEST_DIVISIBLE = 2;//just use even numbers in this test
-      double cX = randomIntBetweenDivisible(-180, 179, TEST_DIVISIBLE);
-      double cY = randomIntBetweenDivisible(-90, 90, TEST_DIVISIBLE);
-      double cR = randomIntBetweenDivisible(0, 180, TEST_DIVISIBLE);
-      double cR_dist = ctx.getDistCalc().distance(ctx.makePoint(0, 0), 0, cR);
-      Circle c = ctx.makeCircle(cX, cY, cR_dist);
-
-      Rectangle r = randomRectangle(TEST_DIVISIBLE);
-
-      SpatialRelation ic = c.relate(r);
-
-      Point p;
-      switch (ic) {
-        case CONTAINS:
-          i_C++;
-          p = randomPointWithin(r);
-          assertEquals(CONTAINS,c.relate(p));
-          break;
-        case INTERSECTS:
-          i_I++;
-          //hard to test anything here; instead we'll test it separately
-          break;
-        case WITHIN:
-          i_W++;
-          p = randomPointWithin(c);
-          assertEquals(CONTAINS,r.relate(p));
-          break;
-        case DISJOINT:
-          i_O++;
-          p = randomPointWithin(r);
-          assertEquals(DISJOINT,c.relate(p));
-          break;
-        default: fail(""+ic);
+    new RectIntersectionTestHelper<Circle>(ctx) {
+      @Override
+      protected Circle generateRandomShape(Point nearP) {
+        double cX = randomIntBetweenDivisible(-180, 179);
+        double cY = randomIntBetweenDivisible(-90, 90);
+        double cR_dist = randomIntBetweenDivisible(0, 180);
+        return ctx.makeCircle(cX, cY, cR_dist);
       }
-    }
-    //System.out.println("Laps: "+laps);
 
-    //TODO deliberately test INTERSECTS based on known intersection point
-  }
+      @Override
+      protected Point randomPointInEmptyShape(Circle shape) {
+        return shape.getCenter();
+      }
 
-  protected Rectangle randomRectangle(int divisible) {
-    double rX = randomIntBetweenDivisible(-180, 180, divisible);
-    double rW = randomIntBetweenDivisible(0, 360, divisible);
-    double rY1 = randomIntBetweenDivisible(-90, 90, divisible);
-    double rY2 = randomIntBetweenDivisible(-90, 90, divisible);
-    double rYmin = Math.min(rY1,rY2);
-    double rYmax = Math.max(rY1,rY2);
-    if (rW > 0 && rX == 180)
-      rX = -180;
-    return makeNormRect(rX, rX + rW, rYmin, rYmax);
+      @Override
+      protected void onAssertFail(AssertionError e, Circle s, Rectangle r, SpatialRelation ic) {
+        //Check if the circle's edge appears to coincide with the shape.
+        final double radius = s.getRadius();
+        if (radius == 180)
+          throw e;//if this happens, then probably a bug
+        if (radius == 0) {
+          Point p = s.getCenter();
+          //if touches a side then don't throw
+          if (p.getX() == r.getMinX() || p.getX() == r.getMaxX()
+            || p.getY() == r.getMinY() || p.getY() == r.getMaxY())
+            return;
+          throw e;
+        }
+        final double eps = 0.0000001;
+        s.reset(s.getCenter().getX(), s.getCenter().getY(), radius - eps);
+        SpatialRelation rel1 = s.relate(r);
+        s.reset(s.getCenter().getX(), s.getCenter().getY(), radius + eps);
+        SpatialRelation rel2 = s.relate(r);
+        if (rel1 == rel2)
+          throw e;
+        s.reset(s.getCenter().getX(), s.getCenter().getY(), radius);//reset
+        System.out.println("Seed "+getContext().getRunnerSeedAsString()+": Hid assertion due to ambiguous edge touch: "+s+" "+r);
+      }
+    }.testRelateWithRectangle();
   }
 
   @Test
@@ -286,63 +206,18 @@ public abstract class AbstractTestShapes extends RandomizedTest {
         ctx.makeRectangle(ctx.makePoint(1, 2), ctx.makePoint(3, 4)));
   }
 
-  @Test
-  @Repeat(iterations = 20)
-  public void testMultiShape() {
-    assumeFalse(ctx.isGeo());//TODO not yet supported!
-
-    //come up with some random shapes
-    int NUM_SHAPES = randomIntBetween(1, 5);
-    List<Rectangle> shapes = new ArrayList<Rectangle>(NUM_SHAPES);
-    while (shapes.size() < NUM_SHAPES) {
-      shapes.add(randomRectangle(20));
-    }
-    MultiShape multiShape = new MultiShape(shapes,ctx);
-
-    //test multiShape.getBoundingBox();
-    Rectangle msBbox = multiShape.getBoundingBox();
-    if (shapes.size() == 1) {
-      assertEquals(shapes.get(0),msBbox.getBoundingBox());
-    } else {
-      for (Rectangle shape : shapes) {
-        assertRelation("bbox contains shape",CONTAINS, msBbox, shape);
-      }
-    }
-
-    //TODO test multiShape.relate()
-
+  protected void testEmptiness(Shape emptyShape) {
+    assertTrue(emptyShape.isEmpty());
+    Point emptyPt = emptyShape.getCenter();
+    assertTrue(emptyPt.isEmpty());
+    Rectangle emptyRect = emptyShape.getBoundingBox();
+    assertTrue(emptyRect.isEmpty());
+    assertEquals(emptyRect, emptyShape.getBoundingBox());
+    assertEquals(emptyPt, emptyShape.getCenter());
+    assertRelation("EMPTY", DISJOINT, emptyShape, emptyPt);
+    assertRelation("EMPTY", DISJOINT, emptyShape, randomPoint());
+    assertRelation("EMPTY", DISJOINT, emptyShape, emptyRect);
+    assertRelation("EMPTY", DISJOINT, emptyShape, randomRectangle(10));
+    assertTrue(emptyShape.getBuffered(randomInt(4), ctx).isEmpty());
   }
-
-  /** Returns a random integer between [start, end]. Integers between must be divisible by the 3rd argument. */
-  private int randomIntBetweenDivisible(int start, int end, int divisible) {
-    // DWS: I tested this
-    int divisStart = (int) Math.ceil( (start+1) / (double)divisible );
-    int divisEnd = (int) Math.floor( (end-1) / (double)divisible );
-    int divisRange = Math.max(0,divisEnd - divisStart + 1);
-    int r = randomInt(1 + divisRange);//remember that '0' is counted
-    if (r == 0)
-      return start;
-    if (r == 1)
-      return end;
-    return (r-2 + divisStart)*divisible;
-  }
-
-  private Point randomPointWithin(Circle c) {
-    double d = c.getRadius() * randomDouble();
-    double angleDEG = 360 * randomDouble();
-    Point p = ctx.getDistCalc().pointOnBearing(c.getCenter(), d, angleDEG, ctx, null);
-    assertEquals(CONTAINS,c.relate(p));
-    return p;
-  }
-
-  private Point randomPointWithin(Rectangle r) {
-    double x = r.getMinX() + randomDouble()*r.getWidth();
-    double y = r.getMinY() + randomDouble()*r.getHeight();
-    x = normX(x);
-    y = normY(y);
-    Point p = ctx.makePoint(x,y);
-    assertEquals(CONTAINS,r.relate(p));
-    return p;
-  }
-
 }

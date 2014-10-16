@@ -6,7 +6,7 @@
  * (the "License"); you may not use this file except in compliance with
  * the License.  You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -20,17 +20,14 @@ package com.spatial4j.core.shape;
 import com.spatial4j.core.context.SpatialContext;
 
 /**
- * The base interface defining a geometric shape. Shape instances are usually
- * retrieved via one of the create* methods on a {@link SpatialContext}. Shapes
- * are generally immutable(*). The sub-classes of Shape generally implement the
- * same contract for {@link Object#equals(Object)} and {@link Object#hashCode()}
- * amongst the same sub-interface type.  This means, for example, that multiple
- * Point implementations of different classes are equal if they share the same x
- * & y.
+ * The base interface defining a geometric shape. Shape instances should be
+ * instantiated via one of the create* methods on a {@link SpatialContext} or
+ * by reading WKT which calls those methods; they should <em>not</em> be
+ * created directly.
  * <p/>
- * (*): If a particular shape has a <code>reset(...)</code> method then its use
- * means the shape is actually mutable. Mutating shape state is considered
- * expert and should be done with care.
+ * Shapes are generally immutable and thread-safe. If a particular shape has a
+ * <code>reset(...)</code> method then its use means the shape is actually
+ * mutable. Mutating shape state is considered expert and should be done with care.
  */
 public interface Shape {
 
@@ -81,5 +78,30 @@ public interface Shape {
    * Postcondition: <code>this.relate(this.getCenter()) == CONTAINS</code>
    */
   Point getCenter();
+
+  /**
+   * Returns a buffered version of this shape.  The buffer is usually a
+   * rounded-corner buffer, although some shapes might buffer differently. This
+   * is an optional operation.
+   *
+   *
+   * @param distance
+   * @return Not null, and the returned shape should contain the current shape.
+   */
+  Shape getBuffered(double distance, SpatialContext ctx);
+
+  /**
+   * Shapes can be "empty", which is to say it exists nowhere. The underlying coordinates are
+   * typically NaN.
+   */
+  boolean isEmpty();
+
+  /** The sub-classes of Shape generally implement the
+   * same contract for {@link Object#equals(Object)} and {@link Object#hashCode()}
+   * amongst the same sub-interface type.  This means, for example, that multiple
+   * Point implementations of different classes are equal if they share the same x
+   * & y. */
+  @Override
+  public boolean equals(Object other);
 }
 

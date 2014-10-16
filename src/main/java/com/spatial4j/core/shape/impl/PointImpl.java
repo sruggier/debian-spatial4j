@@ -6,7 +6,7 @@
  * (the "License"); you may not use this file except in compliance with
  * the License.  You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,6 +18,7 @@
 package com.spatial4j.core.shape.impl;
 
 import com.spatial4j.core.context.SpatialContext;
+import com.spatial4j.core.shape.Circle;
 import com.spatial4j.core.shape.Point;
 import com.spatial4j.core.shape.Rectangle;
 import com.spatial4j.core.shape.Shape;
@@ -37,7 +38,13 @@ public class PointImpl implements Point {
   }
 
   @Override
+  public boolean isEmpty() {
+    return Double.isNaN(x);
+  }
+
+  @Override
   public void reset(double x, double y) {
+    assert ! isEmpty();
     this.x = x;
     this.y = y;
   }
@@ -63,7 +70,14 @@ public class PointImpl implements Point {
   }
 
   @Override
+  public Circle getBuffered(double distance, SpatialContext ctx) {
+    return ctx.makeCircle(this, distance);
+  }
+
+  @Override
   public SpatialRelation relate(Shape other) {
+    if (isEmpty() || other.isEmpty())
+      return SpatialRelation.DISJOINT;
     if (other instanceof Point)
       return this.equals(other) ? SpatialRelation.INTERSECTS : SpatialRelation.DISJOINT;
     return other.relate(this).transpose();
