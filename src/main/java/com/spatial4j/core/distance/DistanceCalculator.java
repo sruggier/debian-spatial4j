@@ -6,7 +6,7 @@
  * (the "License"); you may not use this file except in compliance with
  * the License.  You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,9 +23,9 @@ import com.spatial4j.core.shape.Point;
 import com.spatial4j.core.shape.Rectangle;
 
 /**
- * Performs calculations relating to distance, such as the distance between a
- * pair of points.  A calculator might be based on Euclidean space, or a
- * spherical model, or ellipsoid, or maybe even something else.
+ * Performs calculations relating to distance, such as the distance between a pair of points.  A
+ * calculator might be based on Euclidean space, or a spherical model, or theoretically something
+ * else like an ellipsoid.
  */
 public interface DistanceCalculator {
 
@@ -34,6 +34,9 @@ public interface DistanceCalculator {
 
   /** The distance between <code>from</code> and <code>Point(toX,toY)</code>. */
   public double distance(Point from, double toX, double toY);
+
+  /** Returns true if the distance between from and to is <= distance. */
+  public boolean within(Point from, double toX, double toY, double distance);
 
   /**
    * Calculates where a destination point is given an origin (<code>from</code>)
@@ -49,11 +52,9 @@ public interface DistanceCalculator {
   public Rectangle calcBoxByDistFromPt(Point from, double distDEG, SpatialContext ctx, Rectangle reuse);
 
   /**
-   * The <code>Y</code> coordinate of the horizontal axis (e.g. left-right line)
-   * of a circle.  The horizontal axis of a circle passes through its furthest
-   * left-most and right-most edges. On a 2D plane, this result is always
-   * <code>from.getY()</code> but, perhaps surprisingly, on a sphere it is going
-   * to be slightly different.
+   * The <code>Y</code> coordinate of the horizontal axis of a circle that has maximum width. On a
+   * 2D plane, this result is always <code>from.getY()</code> but, perhaps surprisingly, on a sphere
+   * it is going to be slightly different.
    */
   public double calcBoxByDistFromPt_yHorizAxisDEG(Point from, double distDEG, SpatialContext ctx);
 

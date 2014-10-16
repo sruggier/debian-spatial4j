@@ -6,7 +6,7 @@
  * (the "License"); you may not use this file except in compliance with
  * the License.  You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,29 +19,34 @@ package com.spatial4j.core.shape;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.spatial4j.core.context.SpatialContext;
-import com.spatial4j.core.context.jts.JtsSpatialContext;
+import com.spatial4j.core.context.SpatialContextFactory;
+import com.spatial4j.core.context.jts.JtsSpatialContextFactory;
 import com.spatial4j.core.exception.InvalidShapeException;
+import com.spatial4j.core.shape.impl.BufferedLine;
+import com.spatial4j.core.shape.impl.BufferedLineString;
 import com.spatial4j.core.shape.impl.CircleImpl;
 import com.spatial4j.core.shape.impl.PointImpl;
 import com.spatial4j.core.shape.impl.RectangleImpl;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
-import static com.spatial4j.core.shape.SpatialRelation.*;
+import static com.spatial4j.core.shape.SpatialRelation.CONTAINS;
+import static com.spatial4j.core.shape.SpatialRelation.DISJOINT;
+import static com.spatial4j.core.shape.SpatialRelation.INTERSECTS;
 
 
 public class TestShapes2D extends AbstractTestShapes {
 
-
   @ParametersFactory
   public static Iterable<Object[]> parameters() {
-    Rectangle WB = new RectangleImpl(-2000, 2000, -300, 300, null);//whatever
+    final Rectangle WB = new RectangleImpl(-2000, 2000, -300, 300, null);//whatever
 
     List<Object[]> ctxs = new ArrayList<Object[]>();
-    ctxs.add($(new SpatialContext(false,null,WB)));
-    ctxs.add($(new JtsSpatialContext(null,false,null,WB)));
+    ctxs.add($(new SpatialContextFactory() {{geo = false; worldBounds = WB;}}.newSpatialContext()));
+    ctxs.add($(new JtsSpatialContextFactory() {{geo = false; worldBounds = WB;}}.newSpatialContext()));
     return ctxs;
   }
 
@@ -75,6 +80,10 @@ public class TestShapes2D extends AbstractTestShapes {
 
     pt.reset(1, 2);
     assertEquals(ctx.makePoint(1, 2), pt);
+
+    assertEquals(ctx.makeCircle(pt, 3), pt.getBuffered(3, ctx));
+
+    testEmptiness(ctx.makePoint(Double.NaN, Double.NaN));
   }
 
   @Test
@@ -102,6 +111,11 @@ public class TestShapes2D extends AbstractTestShapes {
     assertEquals(ctx.makeRectangle(1, 2, 3, 4), r);
 
     testRectIntersect();
+
+    if (!ctx.isGeo())
+      assertEquals(ctx.makeRectangle(0.9, 2.1, 2.9, 4.1), ctx.makeRectangle(1, 2, 3, 4).getBuffered(0.1, ctx));
+
+    testEmptiness(ctx.makeRectangle(Double.NaN, Double.NaN, Double.NaN, Double.NaN));
   }
 
   @Test
@@ -122,6 +136,10 @@ public class TestShapes2D extends AbstractTestShapes {
     assertEquals("getX not getY",INTERSECTS,ctx.makeCircle(107,-81,147).relate(ctx.makeRectangle(92, 121, -89, 74)));
 
     testCircleIntersect();
+
+    assertEquals(ctx.makeCircle(1, 2, 10), ctx.makeCircle(1, 2, 6).getBuffered(4, ctx));
+
+    testEmptiness(ctx.makeCircle(Double.NaN, Double.NaN, randomBoolean() ? 0 : Double.NaN));
   }
 
   static void testCircleReset(SpatialContext ctx) {
@@ -132,6 +150,13 @@ public class TestShapes2D extends AbstractTestShapes {
     assertEquals(c.getBoundingBox(), c2.getBoundingBox());
   }
 
+  @Test
+  public void testBufferedLineString() {
+    //see BufferedLineStringTest & BufferedLineTest for more
+
+    testEmptiness(ctx.makeBufferedLineString(Collections.<Point>emptyList(), randomInt(3)));
+  }
+
   /** We have this test here but we'll add geo shapes as needed. */
   @Test
   public void testImplementsEqualsAndHash() throws Exception {
@@ -140,24 +165,10 @@ public class TestShapes2D extends AbstractTestShapes {
             CircleImpl.class,
             //GeoCircle.class  no: its fields are caches, not part of its identity
             RectangleImpl.class,
-            MultiShape.class,
+            ShapeCollection.class,
+            BufferedLineString.class,
+            BufferedLine.class
     });
-  }
-
-  public static void checkShapesImplementEquals( Class[] classes ) {
-
-    for( Class clazz : classes ) {
-      try {
-        clazz.getDeclaredMethod( "equals", Object.class );
-      } catch (Exception e) {
-        fail("Shape needs to define 'equals' : " + clazz.getName());
-      }
-      try {
-        clazz.getDeclaredMethod( "hashCode" );
-      } catch (Exception e) {
-        fail("Shape needs to define 'hashCode' : " + clazz.getName());
-      }
-    }
   }
 
 }

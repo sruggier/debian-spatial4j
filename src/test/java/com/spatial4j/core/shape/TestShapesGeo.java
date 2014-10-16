@@ -6,7 +6,7 @@
  * (the "License"); you may not use this file except in compliance with
  * the License.  You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,7 +19,8 @@ package com.spatial4j.core.shape;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.spatial4j.core.context.SpatialContext;
-import com.spatial4j.core.context.jts.JtsSpatialContext;
+import com.spatial4j.core.context.SpatialContextFactory;
+import com.spatial4j.core.context.jts.JtsSpatialContextFactory;
 import com.spatial4j.core.distance.DistanceCalculator;
 import com.spatial4j.core.distance.DistanceUtils;
 import com.spatial4j.core.distance.GeodesicSphereDistCalc;
@@ -28,7 +29,10 @@ import org.junit.Test;
 
 import java.util.Arrays;
 
-import static com.spatial4j.core.shape.SpatialRelation.*;
+import static com.spatial4j.core.shape.SpatialRelation.CONTAINS;
+import static com.spatial4j.core.shape.SpatialRelation.DISJOINT;
+import static com.spatial4j.core.shape.SpatialRelation.INTERSECTS;
+import static com.spatial4j.core.shape.SpatialRelation.WITHIN;
 
 
 public class TestShapesGeo extends AbstractTestShapes {
@@ -38,13 +42,12 @@ public class TestShapesGeo extends AbstractTestShapes {
 
     //TODO ENABLE LawOfCosines WHEN WORKING
     //DistanceCalculator distCalcL = new GeodesicSphereDistCalc.Haversine(units.earthRadius());//default
-    DistanceCalculator distCalcH = new GeodesicSphereDistCalc.Haversine();//default
-    DistanceCalculator distCalcV = new GeodesicSphereDistCalc.Vincenty();
-    Rectangle WB = SpatialContext.GEO.getWorldBounds();
+    final DistanceCalculator distCalcH = new GeodesicSphereDistCalc.Haversine();//default
+    final DistanceCalculator distCalcV = new GeodesicSphereDistCalc.Vincenty();
     return Arrays.asList($$(
-        $(new SpatialContext(true, new RoundingDistCalc(distCalcH), WB)),
-        $(new SpatialContext(true, new RoundingDistCalc(distCalcV), WB)),
-        $(new JtsSpatialContext(null, true, new RoundingDistCalc(distCalcH), WB)))
+        $(new SpatialContextFactory(){{geo = true; distCalc = new RoundingDistCalc(distCalcH);}}.newSpatialContext()),
+        $(new SpatialContextFactory(){{geo = true; distCalc = new RoundingDistCalc(distCalcV);}}.newSpatialContext()),
+        $(new JtsSpatialContextFactory(){{geo = true; distCalc = new RoundingDistCalc(distCalcH);}}.newSpatialContext()))
     );
   }
 
@@ -98,6 +101,22 @@ public class TestShapesGeo extends AbstractTestShapes {
 
     //Test geo rectangle intersections
     testRectIntersect();
+
+    //Test buffer
+    assertEquals(ctx.makeRectangle(-10, 10, -10, 10), ctx.makeRectangle(0, 0, 0, 0).getBuffered(10, ctx));
+    for (int i = 0; i < atLeast(100); i++) {
+      Rectangle r = randomRectangle(1);
+      int buf = randomIntBetween(0, 90);
+      Rectangle br = (Rectangle) r.getBuffered(buf, ctx);
+      assertRelation(null, CONTAINS, br, r);
+      if (r.getWidth() + 2 * buf >= 360)
+        assertEquals(360, br.getWidth(), 0.0);
+      else
+        assertTrue(br.getWidth() - r.getWidth() >= 2 * buf);
+      //TODO test more thoroughly; we don't check that we over-buf
+    }
+    assertTrue(ctx.makeRectangle(0, 10, 0, 89).getBuffered(0.5, ctx).getBoundingBox().getWidth()
+        > 11);
   }
 
   @Test
@@ -107,8 +126,8 @@ public class TestShapesGeo extends AbstractTestShapes {
     double v = 200 * (randomBoolean() ? -1 : 1);
     try { ctx.makeCircle(v,0,5); fail(); } catch (InvalidShapeException e) {}
     try { ctx.makeCircle(0, v, 5); fail(); } catch (InvalidShapeException e) {}
-    try { ctx.makeCircle(randomIntBetween(-180,180), randomIntBetween(-90,90), v); fail(); }
-    catch (InvalidShapeException e) {}
+//    try { ctx.makeCircle(randomIntBetween(-180,180), randomIntBetween(-90,90), v); fail(); }
+//    catch (InvalidShapeException e) {}
 
     //--Start with some static tests that once failed:
 
@@ -120,7 +139,7 @@ public class TestShapesGeo extends AbstractTestShapes {
     ctx.makeCircle(-36,-76,14);
     ctx.makeCircle(107,82,172);
 
-// TODO need to update this test to be valid
+//TODO need to update this test to be valid
 //    {
 //      //Bug in which distance was being confused as being in the same coordinate system as x,y.
 //      double distDeltaToPole = 0.001;//1m
@@ -133,6 +152,30 @@ public class TestShapesGeo extends AbstractTestShapes {
 //      assertEquals(INTERSECTS,c.getBoundingBox().relate(r));
 //      assertEquals("dist != xy space",INTERSECTS,c.relate(r));//once failed here
 //    }
+
+    //These two are related to a circle being on-edge with another shape
+    //assertEquals("?", INTERSECTS, ctx.makeCircle(156, -70, 20).relate(ctx.makeRectangle(-62, -52, -90, -90)));
+    //Pt(x=-52.24150368914137,y=-90.0)
+    //assertEquals("?", DISJOINT, ctx.makeCircle(156, -70, 20).relate(ctx.makePoint(-52, -90)));//pt.x != c.x
+
+    //What is the "correct" result?  Add a DistUtils edge condition check to return a nibble
+    // when dist 0 and points not the same?  No; we cancel the assertion failure
+    // if the circle touches the rect edge in onAssertFail() instead.
+    //assertEquals("0 radius at pole", DISJOINT, ctx.makeCircle(-98, 90, 0).relate(ctx.makePoint(-144,90)));
+
+
+    assertEquals("bad proportion logic", INTERSECTS, ctx.makeCircle(64, -70, 18).relate(ctx.makeRectangle(46, 116, -86, -62)));
+
+    assertEquals("Both touch pole", INTERSECTS, ctx.makeCircle(-90, 30, 60).relate(ctx.makeRectangle(-24, -16, 14, 90)));
+
+    assertEquals("Spherical cap should contain enclosed band", CONTAINS,
+        ctx.makeCircle(0, -90, 30).relate(ctx.makeRectangle(-180, 180, -90, -80)));
+
+    assertEquals("touches pole", INTERSECTS, ctx.makeCircle(0, -88, 2).relate(ctx.makeRectangle(40,60,-90,-86)));
+
+    assertEquals("wrong farthest opp corner", INTERSECTS, ctx.makeCircle(92, 36, 46).relate(ctx.makeRectangle(134,136,32,80)));
+
+    assertEquals("edge rounding issue 2", INTERSECTS, ctx.makeCircle(84, -40, 136).relate(ctx.makeRectangle(-150, -80, 34, 84)));
 
     assertEquals("edge rounding issue", CONTAINS, ctx.makeCircle(0, 66, 156).relate(ctx.makePoint(0, -90)));
 

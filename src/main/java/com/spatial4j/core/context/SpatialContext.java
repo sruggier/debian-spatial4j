@@ -6,7 +6,7 @@
  * (the "License"); you may not use this file except in compliance with
  * the License.  You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,83 +19,129 @@ package com.spatial4j.core.context;
 
 import com.spatial4j.core.distance.CartesianDistCalc;
 import com.spatial4j.core.distance.DistanceCalculator;
+import com.spatial4j.core.distance.DistanceUtils;
 import com.spatial4j.core.distance.GeodesicSphereDistCalc;
 import com.spatial4j.core.exception.InvalidShapeException;
-import com.spatial4j.core.io.ShapeReadWriter;
+import com.spatial4j.core.io.BinaryCodec;
+import com.spatial4j.core.io.LegacyShapeReadWriterFormat;
+import com.spatial4j.core.io.WktShapeParser;
 import com.spatial4j.core.shape.Circle;
 import com.spatial4j.core.shape.Point;
 import com.spatial4j.core.shape.Rectangle;
 import com.spatial4j.core.shape.Shape;
+import com.spatial4j.core.shape.ShapeCollection;
+import com.spatial4j.core.shape.impl.BufferedLineString;
 import com.spatial4j.core.shape.impl.CircleImpl;
 import com.spatial4j.core.shape.impl.GeoCircle;
 import com.spatial4j.core.shape.impl.PointImpl;
 import com.spatial4j.core.shape.impl.RectangleImpl;
 
+import java.text.ParseException;
+import java.util.List;
+
 /**
- * This is a facade to most of Spatial4j, holding things like {@link
- * DistanceCalculator}, and the coordinate world boundaries, and acting as a
- * factory for the {@link Shape}s.
+ * This is a facade to most of Spatial4j, holding things like {@link DistanceCalculator},
+ * {@link com.spatial4j.core.io.WktShapeParser}, and acting as a factory for the {@link Shape}s.
  * <p/>
- * A SpatialContext has public constructors, but note the convenience instance
- * {@link #GEO}.  Also, if you wish to construct one based on configuration
- * information then consider using {@link SpatialContextFactory}.
+ * If you want a typical geodetic context, just reference {@link #GEO}.  Otherwise,
+ * You should either create and configure a {@link SpatialContextFactory} and then call
+ * {@link SpatialContextFactory#newSpatialContext()}, OR, call
+ * {@link com.spatial4j.core.context.SpatialContextFactory#makeSpatialContext(java.util.Map, ClassLoader)}
+ * to do this via configuration data.
  * <p/>
  * Thread-safe & immutable.
  */
 public class SpatialContext {
 
   /** A popular default SpatialContext implementation for geospatial. */
-  public static final SpatialContext GEO = new SpatialContext(true);
+  public static final SpatialContext GEO = new SpatialContext(new SpatialContextFactory());
 
   //These are non-null
   private final boolean geo;
   private final DistanceCalculator calculator;
   private final Rectangle worldBounds;
 
-  private final ShapeReadWriter shapeReadWriter;
+  private final WktShapeParser wktShapeParser;
+  private final BinaryCodec binaryCodec;
+
+  private final boolean normWrapLongitude;
 
   /**
+   * Consider using {@link com.spatial4j.core.context.SpatialContextFactory} instead.
+   *
    * @param geo Establishes geo vs cartesian / Euclidean.
-   * @param calculator Optional; defaults to Haversine or cartesian depending on units.
+   * @param calculator Optional; defaults to haversine or cartesian depending on {@code geo}.
    * @param worldBounds Optional; defaults to GEO_WORLDBOUNDS or MAX_WORLDBOUNDS depending on units.
    */
+  @Deprecated
   public SpatialContext(boolean geo, DistanceCalculator calculator, Rectangle worldBounds) {
-    this.geo = geo;
+    this(initFromLegacyConstructor(geo, calculator, worldBounds));
+  }
 
-    if (calculator == null) {
-      calculator = isGeo()
-          ? new GeodesicSphereDistCalc.Haversine()
-          : new CartesianDistCalc();
+  private static SpatialContextFactory initFromLegacyConstructor(boolean geo,
+                                                                 DistanceCalculator calculator,
+                                                                 Rectangle worldBounds) {
+    SpatialContextFactory factory = new SpatialContextFactory();
+    factory.geo = geo;
+    factory.distCalc = calculator;
+    factory.worldBounds = worldBounds;
+    return factory;
+  }
+
+  @Deprecated
+  public SpatialContext(boolean geo) {
+    this(initFromLegacyConstructor(geo, null, null));
+  }
+
+  /**
+   * Called by {@link com.spatial4j.core.context.SpatialContextFactory#newSpatialContext()}.
+   */
+  public SpatialContext(SpatialContextFactory factory) {
+    this.geo = factory.geo;
+
+    if (factory.distCalc == null) {
+      this.calculator = isGeo()
+              ? new GeodesicSphereDistCalc.Haversine()
+              : new CartesianDistCalc();
+    } else {
+      this.calculator = factory.distCalc;
     }
-    this.calculator = calculator;
 
-    if (worldBounds == null) {
-      worldBounds = isGeo()
+    //TODO remove worldBounds from Spatial4j: see Issue #55
+    Rectangle bounds = factory.worldBounds;
+    if (bounds == null) {
+      this.worldBounds = isGeo()
               ? new RectangleImpl(-180, 180, -90, 90, this)
               : new RectangleImpl(-Double.MAX_VALUE, Double.MAX_VALUE,
-                  -Double.MAX_VALUE, Double.MAX_VALUE, this);
+              -Double.MAX_VALUE, Double.MAX_VALUE, this);
     } else {
-      if (isGeo())
-        assert worldBounds.equals(new RectangleImpl(-180, 180, -90, 90, this));
-      if (worldBounds.getCrossesDateLine())
-        throw new IllegalArgumentException("worldBounds shouldn't cross dateline: "+worldBounds);
+      if (isGeo() && !bounds.equals(new RectangleImpl(-180, 180, -90, 90, this)))
+        throw new IllegalArgumentException("for geo (lat/lon), bounds must be " + GEO.getWorldBounds());
+      if (bounds.getMinX() > bounds.getMaxX())
+        throw new IllegalArgumentException("worldBounds minX should be <= maxX: "+ bounds);
+      if (bounds.getMinY() > bounds.getMaxY())
+        throw new IllegalArgumentException("worldBounds minY should be <= maxY: "+ bounds);
+      //hopefully worldBounds' rect implementation is compatible
+      this.worldBounds = new RectangleImpl(bounds, this);
     }
-    //hopefully worldBounds' rect implementation is compatible
-    this.worldBounds = new RectangleImpl(worldBounds, this);
 
-    shapeReadWriter = makeShapeReadWriter();
-  }
-
-  public SpatialContext(boolean geo) {
-    this(geo, null, null);
-  }
-
-  protected ShapeReadWriter makeShapeReadWriter() {
-    return new ShapeReadWriter(this);
+    this.normWrapLongitude = factory.normWrapLongitude && this.isGeo();
+    this.wktShapeParser = factory.makeWktShapeParser(this);
+    this.binaryCodec = factory.makeBinaryCodec(this);
   }
 
   public DistanceCalculator getDistCalc() {
     return calculator;
+  }
+
+  /** Convenience that uses {@link #getDistCalc()} */
+  public double calcDistance(Point p, double x2, double y2) {
+    return getDistCalc().distance(p, x2, y2);
+  }
+
+  /** Convenience that uses {@link #getDistCalc()} */
+  public double calcDistance(Point p, Point p2) {
+    return getDistCalc().distance(p, p2);
   }
 
   /**
@@ -106,22 +152,44 @@ public class SpatialContext {
     return worldBounds;
   }
 
-  /** Is this a geospatial context (true) or simply 2d spatial (false). */
+  /** If true then {@link #normX(double)} will wrap longitudes outside of the standard
+   * geodetic boundary into it. Example: 181 will become -179. */
+  public boolean isNormWrapLongitude() {
+    return normWrapLongitude;
+  }
+
+  /** Is the mathematical world model based on a sphere, or is it a flat plane? The word
+   * "geodetic" or "geodesic" is sometimes used to refer to the former, and the latter is sometimes
+   * referred to as "Euclidean" or "cartesian". */
   public boolean isGeo() {
     return geo;
   }
 
-  /** Ensure fits in {@link #getWorldBounds()} */
+  /** Normalize the 'x' dimension. Might reduce precision or wrap it to be within the bounds. This
+   * is called by {@link com.spatial4j.core.io.WktShapeParser} before creating a shape. */
+  public double normX(double x) {
+    if (normWrapLongitude)
+      x = DistanceUtils.normLonDEG(x);
+    return x;
+  }
+
+  /** Normalize the 'y' dimension. Might reduce precision or wrap it to be within the bounds. This
+   * is called by {@link com.spatial4j.core.io.WktShapeParser} before creating a shape. */
+  public double normY(double y) { return y; }
+
+  /** Ensure fits in {@link #getWorldBounds()}. It's called by any shape factory method that
+   * gets an 'x' dimension. */
   public void verifyX(double x) {
     Rectangle bounds = getWorldBounds();
-    if (!(x >= bounds.getMinX() && x <= bounds.getMaxX()))//NaN will fail
+    if (x < bounds.getMinX() || x > bounds.getMaxX())//NaN will pass
       throw new InvalidShapeException("Bad X value "+x+" is not in boundary "+bounds);
   }
 
-  /** Ensure fits in {@link #getWorldBounds()} */
+  /** Ensure fits in {@link #getWorldBounds()}. It's called by any shape factory method that
+   * gets a 'y' dimension. */
   public void verifyY(double y) {
     Rectangle bounds = getWorldBounds();
-    if (!(y >= bounds.getMinY() && y <= bounds.getMaxY()))//NaN will fail
+    if (y < bounds.getMinY() || y > bounds.getMaxY())//NaN will pass
       throw new InvalidShapeException("Bad Y value "+y+" is not in boundary "+bounds);
   }
 
@@ -146,7 +214,7 @@ public class SpatialContext {
   public Rectangle makeRectangle(double minX, double maxX, double minY, double maxY) {
     Rectangle bounds = getWorldBounds();
     // Y
-    if (!(minY >= bounds.getMinY() && maxY <= bounds.getMaxY()))//NaN will fail
+    if (minY < bounds.getMinY() || maxY > bounds.getMaxY())//NaN will pass
       throw new InvalidShapeException("Y values ["+minY+" to "+maxY+"] not in boundary "+bounds);
     if (minY > maxY)
       throw new InvalidShapeException("maxY must be >= minY: " + minY + " to " + maxY);
@@ -164,7 +232,7 @@ public class SpatialContext {
       }
       //}
     } else {
-      if (!(minX >= bounds.getMinX() && maxX <= bounds.getMaxX()))//NaN will fail
+      if (minX < bounds.getMinX() || maxX > bounds.getMaxX())//NaN will pass
         throw new InvalidShapeException("X values ["+minX+" to "+maxX+"] not in boundary "+bounds);
       if (minX > maxX)
         throw new InvalidShapeException("maxX must be >= minX: " + minX + " to " + maxX);
@@ -182,22 +250,84 @@ public class SpatialContext {
     if (distance < 0)
       throw new InvalidShapeException("distance must be >= 0; got " + distance);
     if (isGeo()) {
-      if (distance > 180)
-        throw new InvalidShapeException("distance must be <= 180; got " + distance);
+      if (distance > 180) {
+        // (it's debatable whether to error or not)
+        //throw new InvalidShapeException("distance must be <= 180; got " + distance);
+        distance = 180;
+      }
       return new GeoCircle(point, distance, this);
     } else {
       return new CircleImpl(point, distance, this);
     }
   }
 
-  @Deprecated
-  public Shape readShape(String value) throws InvalidShapeException {
-    return shapeReadWriter.readShape(value);
+  /** Constructs a line string. It's an ordered sequence of connected vertexes. There
+   * is no official shape/interface for it yet so we just return Shape. */
+  public Shape makeLineString(List<Point> points) {
+    return new BufferedLineString(points, 0, false, this);
   }
 
+  /** Constructs a buffered line string. It's an ordered sequence of connected vertexes,
+   * with a buffer distance along the line in all directions. There
+   * is no official shape/interface for it so we just return Shape. */
+  public Shape makeBufferedLineString(List<Point> points, double buf) {
+    return new BufferedLineString(points, buf, isGeo(), this);
+  }
+
+  /** Construct a ShapeCollection, analogous to an OGC GeometryCollection. */
+  public <S extends Shape> ShapeCollection<S> makeCollection(List<S> coll) {
+    return new ShapeCollection<S>(coll, this);
+  }
+
+  /** The {@link com.spatial4j.core.io.WktShapeParser} used by {@link #readShapeFromWkt(String)}. */
+  public WktShapeParser getWktShapeParser() {
+    return wktShapeParser;
+  }
+
+  /** Reads a shape from the string formatted in WKT.
+   * @see com.spatial4j.core.io.WktShapeParser
+   * @param wkt non-null WKT.
+   * @return non-null
+   * @throws ParseException if it failed to parse.
+   */
+  public Shape readShapeFromWkt(String wkt) throws ParseException {
+    return wktShapeParser.parse(wkt);
+  }
+
+  public BinaryCodec getBinaryCodec() { return binaryCodec; }
+
+  /** Reads the shape from a String using the old/deprecated
+   * {@link com.spatial4j.core.io.LegacyShapeReadWriterFormat}.
+   * Instead you should use standard WKT via {@link #readShapeFromWkt(String)}. This method falls
+   * back on WKT if it's not in the legacy format.
+   * @param value non-null
+   * @return non-null
+   */
+  @Deprecated
+  public Shape readShape(String value) throws InvalidShapeException {
+    Shape s = LegacyShapeReadWriterFormat.readShapeOrNull(value, this);
+    if (s == null) {
+      try {
+        s = readShapeFromWkt(value);
+      } catch (ParseException e) {
+        if (e.getCause() instanceof InvalidShapeException)
+          throw (InvalidShapeException) e.getCause();
+        throw new InvalidShapeException(e.toString(), e);
+      }
+    }
+    return s;
+  }
+
+  /** Writes the shape to a String using the old/deprecated
+   * {@link com.spatial4j.core.io.LegacyShapeReadWriterFormat}. The JTS based subclass will write it
+   * to WKT if the legacy format doesn't support that shape.
+   * <b>Spatial4j in the near future won't support writing shapes to strings.</b>
+   * @param shape non-null
+   * @return non-null
+   */
   @Deprecated
   public String toString(Shape shape) {
-    return shapeReadWriter.writeShape(shape);
+    return LegacyShapeReadWriterFormat.writeShape(shape);
   }
 
   @Override

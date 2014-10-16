@@ -6,7 +6,7 @@
  * (the "License"); you may not use this file except in compliance with
  * the License.  You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -57,11 +57,49 @@ public class RectangleImpl implements Rectangle {
 
   @Override
   public void reset(double minX, double maxX, double minY, double maxY) {
+    assert ! isEmpty();
     this.minX = minX;
     this.maxX = maxX;
     this.minY = minY;
     this.maxY = maxY;
-    assert minY <= maxY;
+    assert minY <= maxY || Double.isNaN(minY) : "minY, maxY: "+minY+", "+maxY;
+  }
+
+  @Override
+  public boolean isEmpty() {
+    return Double.isNaN(minX);
+  }
+
+  @Override
+  public Rectangle getBuffered(double distance, SpatialContext ctx) {
+    if (ctx.isGeo()) {
+      //first check pole touching, triggering a world-wrap rect
+      if (maxY + distance >= 90) {
+        return ctx.makeRectangle(-180, 180, Math.max(-90, minY - distance), 90);
+      } else if (minY - distance <= -90) {
+        return ctx.makeRectangle(-180, 180, -90, Math.min(90, maxY + distance));
+      } else {
+        //doesn't touch pole
+        double latDistance = distance;
+        double closestToPoleY = (maxY - minY > 0) ? maxY : minY;
+        double lonDistance = DistanceUtils.calcBoxByDistFromPt_deltaLonDEG(
+            closestToPoleY, minX, distance);//lat,lon order
+        //could still wrap the world though...
+        if (lonDistance * 2 + getWidth() >= 360)
+          return ctx.makeRectangle(-180, 180, minY - latDistance, maxY + latDistance);
+        return ctx.makeRectangle(
+            DistanceUtils.normLonDEG(minX - lonDistance),
+            DistanceUtils.normLonDEG(maxX + lonDistance),
+            minY - latDistance, maxY + latDistance);
+      }
+    } else {
+      Rectangle worldBounds = ctx.getWorldBounds();
+      double newMinX = Math.max(worldBounds.getMinX(), minX - distance);
+      double newMaxX = Math.min(worldBounds.getMaxX(), maxX + distance);
+      double newMinY = Math.max(worldBounds.getMinY(), minY - distance);
+      double newMaxY = Math.min(worldBounds.getMaxY(), maxY + distance);
+      return ctx.makeRectangle(newMinX, newMaxX, newMinY, newMaxY);
+    }
   }
 
   @Override
@@ -125,6 +163,8 @@ public class RectangleImpl implements Rectangle {
 
   @Override
   public SpatialRelation relate(Shape other) {
+    if (isEmpty() || other.isEmpty())
+      return SpatialRelation.DISJOINT;
     if (other instanceof Point) {
       return relate((Point) other);
     }
@@ -242,6 +282,8 @@ public class RectangleImpl implements Rectangle {
 
   @Override
   public Point getCenter() {
+    if (Double.isNaN(minX))
+      return ctx.makePoint(Double.NaN, Double.NaN);
     final double y = getHeight() / 2 + minY;
     double x = getWidth() / 2 + minX;
     if (minX > maxX)//WGS84
