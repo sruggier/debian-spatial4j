@@ -1,3 +1,12 @@
+spatial4j-0.4 (0.4.1-1) unstable; urgency=medium
+
+  * New upstream version / new package (Closes: #766098)
+  * Bumped Standards-Vesion, renamed binary package due to API/ABI
+    incompatibilities, switched to CDBS
+  * Added japi-compat reports
+
+ -- Hilko Bengen <bengen@debian.org>  Wed, 22 Oct 2014 20:55:48 +0200
+
 spatial4j (0.3-1) unstable; urgency=low
 
   * Initial release (Closes: #736653)
