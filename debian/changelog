@@ -1,3 +1,11 @@
+spatial4j-0.4 (0.4.1-2) unstable; urgency=medium
+
+  * Give package to Debian Java Maintainers, add Vcs-* fields
+  * Remove JTS maven hack which is no longer needed (Closes: #766098).
+    Thanks Sebastiaan Couwenberg.
+
+ -- Hilko Bengen <bengen@debian.org>  Sat, 28 Nov 2015 14:21:14 +0100
+
 spatial4j-0.4 (0.4.1-1) unstable; urgency=medium
 
   * New upstream version / new package (Closes: #766098)
