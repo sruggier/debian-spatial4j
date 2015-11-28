@@ -10,10 +10,6 @@ JAVA_HOME := /usr/lib/jvm/default-java
 get-orig-source:
 	uscan --download-version $(DEB_UPSTREAM_VERSION) --force-download --rename
 
-post-patches::
-	# libjts-java ships without a maven pom, so install a fake one
-	mvn install:install-file -s/etc/maven2/settings-debian.xml -Dmaven.repo.local=`pwd`/debian/maven-repo -Dfile=/usr/share/java/jts.jar -DgroupId=com.vividsolutions -DartifactId=jts -Dversion=fake -Dpackaging=jar
-
 install/$(pkg)::
 	# --no-usj-versionless does not to what the comment in the
 	# --generated .poms file claims.

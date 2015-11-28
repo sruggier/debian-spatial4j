@@ -6,7 +6,7 @@ Uploaders: Hilko Bengen <bengen@debian.org>
 Build-Depends: debhelper (>= 9), default-jdk, maven-debian-helper (>= 1.6.5),
  cdbs,
  libmaven-install-plugin-java, libmaven-bundle-plugin-java,
- libjts-java,
+ libjts-java (>= 1.13),
 Standards-Version: 3.9.6
 Vcs-Git: git://anonscm.debian.org/pkg-java/spatial4j-0.4.git
 Vcs-Browser: https://anonscm.debian.org/gitweb/?p=pkg-java/spatial4j-0.4.git
