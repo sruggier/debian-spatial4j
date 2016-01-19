@@ -1,2 +1,2 @@
 
-com.vividsolutions jts * s/.*/fake/ * *
+com.vividsolutions jts * s/.*/debian/ * *

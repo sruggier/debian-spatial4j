@@ -1,3 +1,11 @@
+spatial4j (0.3-1.1) unstable; urgency=medium
+
+  * Non-maintainer upload.
+  * Fixed the build failure with maven-debian-helper >= 2.0
+    (Closes: #806430, #807609)
+
+ -- Emmanuel Bourg <ebourg@apache.org>  Tue, 19 Jan 2016 13:19:03 +0100
+
 spatial4j (0.3-1) unstable; urgency=low
 
   * Initial release (Closes: #736653)

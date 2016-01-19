@@ -4,7 +4,7 @@ Priority: optional
 Maintainer: Hilko Bengen <bengen@debian.org>
 Build-Depends: debhelper (>= 9), default-jdk, maven-debian-helper (>= 1.6.5),
  libmaven-install-plugin-java,
- libjts-java,
+ libjts-java (>= 1.13),
 Standards-Version: 3.9.5
 
 Package: libspatial4j-java
