@@ -2,6 +2,7 @@ spatial4j-0.4 (0.4.1-4) UNRELEASED; urgency=medium
 
   * Team upload.
   * Build with the DH sequencer instead of CDBS
+  * Enabled the unit tests
   * Added the Homepage field to debian/control
   * Standards-Version updated to 3.9.7 (no changes)
   * Updated the upstream authors in debian/copyright

@@ -5,9 +5,12 @@ Maintainer: Debian Java Maintainers <pkg-java-maintainers@lists.alioth.debian.or
 Uploaders: Hilko Bengen <bengen@debian.org>
 Build-Depends: debhelper (>= 9),
                default-jdk,
+               junit4,
+               libcarrotsearch-randomizedtesting-java,
                libjts-java (>= 1.13),
                libmaven-bundle-plugin-java,
                libmaven-install-plugin-java,
+               libslf4j-java,
                maven-debian-helper (>= 1.6.5)
 Standards-Version: 3.9.7
 Vcs-Git: git://anonscm.debian.org/pkg-java/spatial4j-0.4.git
