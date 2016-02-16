@@ -1,3 +1,10 @@
+spatial4j (0.4.1-5) UNRELEASED; urgency=medium
+
+  * Team upload.
+  * Renamed the package back to spatial4j
+
+ -- Emmanuel Bourg <ebourg@apache.org>  Wed, 17 Feb 2016 00:43:42 +0100
+
 spatial4j-0.4 (0.4.1-4) unstable; urgency=medium
 
   * Team upload.
