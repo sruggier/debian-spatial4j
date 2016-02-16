@@ -3,9 +3,12 @@ Section: java
 Priority: optional
 Maintainer: Debian Java Maintainers <pkg-java-maintainers@lists.alioth.debian.org>
 Uploaders: Hilko Bengen <bengen@debian.org>
-Build-Depends: debhelper (>= 9), default-jdk, maven-debian-helper (>= 1.6.5),
- libmaven-install-plugin-java, libmaven-bundle-plugin-java,
- libjts-java (>= 1.13),
+Build-Depends: debhelper (>= 9),
+               default-jdk,
+               libjts-java (>= 1.13),
+               libmaven-bundle-plugin-java,
+               libmaven-install-plugin-java,
+               maven-debian-helper (>= 1.6.5)
 Standards-Version: 3.9.7
 Vcs-Git: git://anonscm.debian.org/pkg-java/spatial4j-0.4.git
 Vcs-Browser: https://anonscm.debian.org/cgit/pkg-java/spatial4j-0.4.git
@@ -20,4 +23,3 @@ Description: spatial/geospatial Java library
  It's core capabilities are 3-fold: to provide common
  geospatially-aware shapes, to provide distance calculations and other
  math, and to read and write the shapes to strings.
-
