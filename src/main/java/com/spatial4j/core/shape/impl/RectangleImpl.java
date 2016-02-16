@@ -1,24 +1,16 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+/*******************************************************************************
+ * Copyright (c) 2015 Voyager Search and MITRE
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Apache License, Version 2.0 which
+ * accompanies this distribution and is available at
+ *    http://www.apache.org/licenses/LICENSE-2.0.txt
+ ******************************************************************************/
 
 package com.spatial4j.core.shape.impl;
 
 import com.spatial4j.core.context.SpatialContext;
 import com.spatial4j.core.distance.DistanceUtils;
+import com.spatial4j.core.shape.BaseShape;
 import com.spatial4j.core.shape.Point;
 import com.spatial4j.core.shape.Rectangle;
 import com.spatial4j.core.shape.Shape;
@@ -29,9 +21,8 @@ import com.spatial4j.core.shape.SpatialRelation;
  * wrap-around. When minX > maxX, this will assume it is world coordinates that
  * cross the date line using degrees. Immutable & threadsafe.
  */
-public class RectangleImpl implements Rectangle {
+public class RectangleImpl extends BaseShape<SpatialContext> implements Rectangle {
 
-  private final SpatialContext ctx;
   private double minX;
   private double maxX;
   private double minY;
@@ -39,8 +30,8 @@ public class RectangleImpl implements Rectangle {
 
   /** A simple constructor without normalization / validation. */
   public RectangleImpl(double minX, double maxX, double minY, double maxY, SpatialContext ctx) {
+    super(ctx);
     //TODO change to West South East North to be more consistent with OGC?
-    this.ctx = ctx;
     reset(minX, maxX, minY, maxY);
   }
 
@@ -81,7 +72,7 @@ public class RectangleImpl implements Rectangle {
       } else {
         //doesn't touch pole
         double latDistance = distance;
-        double closestToPoleY = (maxY - minY > 0) ? maxY : minY;
+        double closestToPoleY = Math.abs(maxY) > Math.abs(minY) ? maxY : minY;
         double lonDistance = DistanceUtils.calcBoxByDistFromPt_deltaLonDEG(
             closestToPoleY, minX, distance);//lat,lon order
         //could still wrap the world though...
@@ -214,12 +205,26 @@ public class RectangleImpl implements Rectangle {
       return xIntersect;
 
     //if one side is equal, return the other
-    if (getMinX() == rect.getMinX() && getMaxX() == rect.getMaxX())
-      return yIntersect;
     if (getMinY() == rect.getMinY() && getMaxY() == rect.getMaxY())
       return xIntersect;
+    if (getMinX() == rect.getMinX() && getMaxX() == rect.getMaxX()
+            || (ctx.isGeo() && verticalAtDateline(this, rect))) {
+      return yIntersect;
+    }
 
     return SpatialRelation.INTERSECTS;
+  }
+
+  //note: if vertical lines at the dateline were normalized (say to -180.0) then this method wouldn't be necessary.
+  private static boolean verticalAtDateline(RectangleImpl rect1, Rectangle rect2) {
+    if (rect1.getMinX() == rect1.getMaxX() && rect2.getMinX() == rect2.getMaxX()) {
+      if (rect1.getMinX() == -180) {
+        return rect2.getMinX() == +180;
+      } else if (rect1.getMinX() == +180) {
+        return rect2.getMinX() == -180;
+      }
+    }
+    return false;
   }
 
   //TODO might this utility move to SpatialRelation ?

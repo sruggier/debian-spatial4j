@@ -1,26 +1,16 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+/*******************************************************************************
+ * Copyright (c) 2015 MITRE
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Apache License, Version 2.0 which
+ * accompanies this distribution and is available at
+ *    http://www.apache.org/licenses/LICENSE-2.0.txt
+ ******************************************************************************/
 
 package com.spatial4j.core.shape;
 
 import com.spatial4j.core.TestLog;
 import com.spatial4j.core.context.SpatialContext;
 import com.spatial4j.core.context.SpatialContextFactory;
-import com.spatial4j.core.shape.impl.Range;
 import com.spatial4j.core.shape.impl.RectangleImpl;
 import org.junit.Rule;
 import org.junit.Test;
@@ -31,8 +21,13 @@ import java.util.List;
 
 import static com.spatial4j.core.shape.SpatialRelation.CONTAINS;
 
-/** @author David Smiley - dsmiley@mitre.org */
 public class ShapeCollectionTest extends RandomizedShapeTest {
+
+  public static final String WORLD180 = getLonRangeString(SpatialContext.GEO.getWorldBounds());
+
+  protected static String getLonRangeString(Rectangle bbox) {
+    return bbox.getMinX()+" "+bbox.getMaxX();
+  }
 
   @Rule
   public final TestLog testLog = TestLog.instance;
@@ -44,17 +39,30 @@ public class ShapeCollectionTest extends RandomizedShapeTest {
     validateWorld(-90, +90, +90, -90);
   }
 
+  @Test
+  public void testBboxNotWorldWrap() {
+    ctx = SpatialContext.GEO;
+    //doesn't contain 102, thus shouldn't world-wrap
+    Rectangle r1 = ctx.makeRectangle(-92, 90, -10, 10);
+    Rectangle r2 = ctx.makeRectangle(130, 172, -10, 10);
+    Rectangle r3 = ctx.makeRectangle(172, -60, -10, 10);
+    ShapeCollection<Rectangle> s = new ShapeCollection<Rectangle>(Arrays.asList(r1,r2,r3), ctx);
+    assertEquals("130.0 90.0", getLonRangeString(s.getBoundingBox()));
+    // note: BBoxCalculatorTest thoroughly tests the longitude range
+  }
+
+
   private void validateWorld(double r1MinX, double r1MaxX, double r2MinX, double r2MaxX) {
     ctx = SpatialContext.GEO;
     Rectangle r1 = ctx.makeRectangle(r1MinX, r1MaxX, -10, 10);
     Rectangle r2 = ctx.makeRectangle(r2MinX, r2MaxX, -10, 10);
 
     ShapeCollection<Rectangle> s = new ShapeCollection<Rectangle>(Arrays.asList(r1,r2), ctx);
-    assertEquals(Range.LongitudeRange.WORLD_180E180W, new Range.LongitudeRange(s.getBoundingBox()));
+    assertEquals(WORLD180, getLonRangeString(s.getBoundingBox()));
 
     //flip r1, r2 order
     s = new ShapeCollection<Rectangle>(Arrays.asList(r2,r1), ctx);
-    assertEquals(Range.LongitudeRange.WORLD_180E180W, new Range.LongitudeRange(s.getBoundingBox()));
+    assertEquals(WORLD180, getLonRangeString(s.getBoundingBox()));
   }
 
   @Test
@@ -95,6 +103,18 @@ public class ShapeCollectionTest extends RandomizedShapeTest {
       } else {
         for (Rectangle shape : shapes) {
           assertRelation("bbox contains shape", CONTAINS, msBbox, shape);
+        }
+        if (ctx.isGeo() && msBbox.getMinX() == -180 && msBbox.getMaxX() == 180) {
+          int lonTest = randomIntBetween(-180, 180);
+          boolean valid = false;
+          for (Rectangle shape : shapes) {
+            if (shape.relateXRange(lonTest, lonTest).intersects()) {
+              valid = true;
+              break;
+            }
+          }
+          if (!valid)
+            fail("ShapeCollection bbox world-wrap doesn't contain "+lonTest+" for shapes: "+shapes);
         }
       }
       return shapeCollection;

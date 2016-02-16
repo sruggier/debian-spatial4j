@@ -1,27 +1,21 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+/*******************************************************************************
+ * Copyright (c) 2015 Voyager Search and MITRE
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Apache License, Version 2.0 which
+ * accompanies this distribution and is available at
+ *    http://www.apache.org/licenses/LICENSE-2.0.txt
+ ******************************************************************************/
 
 package com.spatial4j.core.context;
 
+import com.spatial4j.core.context.jts.DatelineRule;
 import com.spatial4j.core.context.jts.JtsSpatialContext;
 import com.spatial4j.core.context.jts.JtsSpatialContextFactory;
+import com.spatial4j.core.context.jts.ValidationRule;
 import com.spatial4j.core.distance.CartesianDistCalc;
 import com.spatial4j.core.distance.GeodesicSphereDistCalc;
-import com.spatial4j.core.io.jts.JtsWktShapeParser;
+import com.spatial4j.core.io.ShapeIO;
+import com.spatial4j.core.io.jts.JtsWKTReader;
 import com.spatial4j.core.shape.impl.RectangleImpl;
 import org.junit.After;
 import org.junit.Test;
@@ -94,10 +88,10 @@ public class SpatialContextFactoryTest {
     assertTrue(ctx.isNormWrapLongitude());
     assertEquals(2.0, ctx.getGeometryFactory().getPrecisionModel().getScale(), 0.0);
     assertTrue(CustomWktShapeParser.once);//cheap way to test it was created
-    assertEquals(JtsWktShapeParser.DatelineRule.ccwRect,
-        ((JtsWktShapeParser)ctx.getWktShapeParser()).getDatelineRule());
-    assertEquals(JtsWktShapeParser.ValidationRule.repairConvexHull,
-        ((JtsWktShapeParser)ctx.getWktShapeParser()).getValidationRule());
+    assertEquals(DatelineRule.ccwRect,
+        ctx.getDatelineRule());
+    assertEquals(ValidationRule.repairConvexHull,
+        ctx.getValidationRule());
 
     //ensure geo=false with worldbounds works -- fixes #72
     ctx = (JtsSpatialContext) call(
@@ -111,6 +105,16 @@ public class SpatialContextFactoryTest {
         "validationRule", "repairConvexHull",
         "autoIndex", "true");
     assertEquals(300, ctx.getWorldBounds().getMaxY(), 0.0);
+  }
+  
+
+  @Test
+  public void testFormatsConfig() {
+    JtsSpatialContext ctx = (JtsSpatialContext) call(
+        "spatialContextFactory", JtsSpatialContextFactory.class.getName(),
+        "readers", CustomWktShapeParser.class.getName());
+    
+    assertTrue( ctx.getFormats().getReader(ShapeIO.WKT) instanceof CustomWktShapeParser );
   }
   
   @Test
@@ -128,7 +132,7 @@ public class SpatialContextFactoryTest {
     }
   }
 
-  public static class CustomWktShapeParser extends JtsWktShapeParser {
+  public static class CustomWktShapeParser extends JtsWKTReader {
     static boolean once = false;//cheap way to test it was created
     public CustomWktShapeParser(JtsSpatialContext ctx, JtsSpatialContextFactory factory) {
       super(ctx, factory);

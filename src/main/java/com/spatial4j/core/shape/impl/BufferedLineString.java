@@ -1,23 +1,15 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+/*******************************************************************************
+ * Copyright (c) 2015 MITRE
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Apache License, Version 2.0 which
+ * accompanies this distribution and is available at
+ *    http://www.apache.org/licenses/LICENSE-2.0.txt
+ ******************************************************************************/
 
 package com.spatial4j.core.shape.impl;
 
 import com.spatial4j.core.context.SpatialContext;
+import com.spatial4j.core.shape.BaseShape;
 import com.spatial4j.core.shape.Point;
 import com.spatial4j.core.shape.Rectangle;
 import com.spatial4j.core.shape.Shape;
@@ -34,7 +26,7 @@ import java.util.List;
  * resulting in what some call a "Track" or "Polyline" (ESRI terminology).
  * The buffer can be 0.  Note that BufferedLine isn't yet aware of geodesics (e.g. the dateline).
  */
-public class BufferedLineString implements Shape {
+public class BufferedLineString extends BaseShape<SpatialContext> {
 
   //TODO add some geospatial awareness like:
   // segment that spans at the dateline (split it at DL?).
@@ -62,6 +54,7 @@ public class BufferedLineString implements Shape {
    */
   public BufferedLineString(List<Point> points, double buf, boolean expandBufForLongitudeSkew,
                             SpatialContext ctx) {
+    super(ctx);
     this.buf = buf;
 
     if (points.isEmpty()) {

@@ -1,25 +1,17 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+/*******************************************************************************
+ * Copyright (c) 2015 Voyager Search and MITRE
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Apache License, Version 2.0 which
+ * accompanies this distribution and is available at
+ *    http://www.apache.org/licenses/LICENSE-2.0.txt
+ ******************************************************************************/
 
 package com.spatial4j.core.context.jts;
 
 import com.spatial4j.core.context.SpatialContextFactory;
-import com.spatial4j.core.io.jts.JtsBinaryCodec;
-import com.spatial4j.core.io.jts.JtsWktShapeParser;
+import com.spatial4j.core.io.LegacyShapeReader;
+import com.spatial4j.core.io.LegacyShapeWriter;
+import com.spatial4j.core.io.jts.*;
 import com.vividsolutions.jts.geom.CoordinateSequenceFactory;
 import com.vividsolutions.jts.geom.GeometryFactory;
 import com.vividsolutions.jts.geom.PrecisionModel;
@@ -35,12 +27,12 @@ import java.util.Map;
  * <DL>
  * <DT>datelineRule</DT>
  * <DD>width180(default)|ccwRect|none
- *  -- see {@link com.spatial4j.core.io.jts.JtsWktShapeParser.DatelineRule}</DD>
+ *  -- see {@link DatelineRule}</DD>
  * <DT>validationRule</DT>
  * <DD>error(default)|none|repairConvexHull|repairBuffer0
- *  -- see {@link com.spatial4j.core.io.jts.JtsWktShapeParser.ValidationRule}</DD>
+ *  -- see {@link ValidationRule}</DD>
  * <DT>autoIndex</DT>
- * <DD>true|false(default) -- see {@link JtsWktShapeParser#isAutoIndex()}</DD>
+ * <DD>true|false(default) -- see {@link JtsWKTReader#isAutoIndex()}</DD>
  * <DT>allowMultiOverlap</DT>
  * <DD>true|false(default) -- see {@link JtsSpatialContext#isAllowMultiOverlap()}</DD>
  * <DT>precisionModel</DT>
@@ -60,9 +52,9 @@ public class JtsSpatialContextFactory extends SpatialContextFactory {
   public CoordinateSequenceFactory coordinateSequenceFactory = CoordinateArraySequenceFactory.instance();
 
   //ignored if geo=false
-  public JtsWktShapeParser.DatelineRule datelineRule = JtsWktShapeParser.DatelineRule.width180;
+  public DatelineRule datelineRule = DatelineRule.width180;
 
-  public JtsWktShapeParser.ValidationRule validationRule = JtsWktShapeParser.ValidationRule.error;
+  public ValidationRule validationRule = ValidationRule.error;
   public boolean autoIndex = false;
   public boolean allowMultiOverlap = false;//ignored if geo=false
 
@@ -71,8 +63,23 @@ public class JtsSpatialContextFactory extends SpatialContextFactory {
   public boolean useJtsLineString = true;
 
   public JtsSpatialContextFactory() {
-    super.wktShapeParserClass = JtsWktShapeParser.class;
     super.binaryCodecClass = JtsBinaryCodec.class;
+  }
+
+  @Override
+  protected void checkDefaultFormats() {
+    if (readers.isEmpty() ) {
+      addReaderIfNoggitExists(JtsGeoJSONReader.class);
+      readers.add(JtsWKTReader.class);
+      readers.add(JtsPolyshapeReader.class);
+      readers.add(LegacyShapeReader.class);
+    }
+    if (writers.isEmpty()) {
+      writers.add(JtsGeoJSONWriter.class);
+      writers.add(JtsWKTWriter.class);
+      writers.add(JtsPolyshapeWriter.class);
+      writers.add(LegacyShapeWriter.class);
+    }
   }
   
   @Override
@@ -105,7 +112,7 @@ public class JtsSpatialContextFactory extends SpatialContextFactory {
       }
     }
   }
-
+  
   public GeometryFactory getGeometryFactory() {
     if (precisionModel == null || coordinateSequenceFactory == null)
       throw new IllegalStateException("precision model or coord seq factory can't be null");

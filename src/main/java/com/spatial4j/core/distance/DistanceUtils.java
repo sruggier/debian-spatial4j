@@ -15,6 +15,8 @@
  * limitations under the License.
  */
 
+// NOTE: we keep the header as it came from ASF; it did not originate in Spatial4j
+
 package com.spatial4j.core.distance;
 
 import com.spatial4j.core.context.SpatialContext;
@@ -155,7 +157,7 @@ public class DistanceUtils {
   }
 
   /**
-   * Given a start point (startLat, startLon) and a bearing on a sphere, return the destination point.
+   * Given a start point (startLat, startLon), distance, and a bearing on a sphere, return the destination point.
    *
    * @param startLat The starting point latitude, in radians
    * @param startLon The starting point longitude, in radians
@@ -406,6 +408,8 @@ public class DistanceUtils {
     double hsinY = Math.sin((lat1 - lat2) * 0.5);
     double h = hsinY * hsinY +
             (Math.cos(lat1) * Math.cos(lat2) * hsinX * hsinX);
+    if (h > 1)//numeric robustness issue. If we didn't check, the answer would be NaN!
+      h = 1;
     return 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
   }
 
@@ -421,23 +425,16 @@ public class DistanceUtils {
    * The arguments and return value are in radians.
    */
   public static double distLawOfCosinesRAD(double lat1, double lon1, double lat2, double lon2) {
-    //TODO validate formula
-
-    //(MIGRATED FROM org.apache.lucene.spatial.geometry.LatLng.arcDistance()) (Lucene 3x)
-    // Imported from mq java client.  Variable references changed to match.
-
     // Check for same position
     if (lat1 == lat2 && lon1 == lon2)
       return 0.0;
 
-    // Get the m_dLongitude difference. Don't need to worry about
-    // crossing 180 since cos(x) = cos(-x)
+    // Get the longitude difference. Don't need to worry about
+    // crossing dateline since cos(x) = cos(-x)
     double dLon = lon2 - lon1;
 
-    double a = DEG_90_AS_RADS - lat1;
-    double c = DEG_90_AS_RADS - lat2;
-    double cosB = (Math.cos(a) * Math.cos(c))
-        + (Math.sin(a) * Math.sin(c) * Math.cos(dLon));
+    double cosB = (Math.sin(lat1) * Math.sin(lat2))
+            + (Math.cos(lat1) * Math.cos(lat2) * Math.cos(dLon));
 
     // Find angle subtended (with some bounds checking) in radians
     if (cosB < -1.0)
