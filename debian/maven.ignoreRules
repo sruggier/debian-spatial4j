@@ -5,6 +5,7 @@ junit junit * * * *
 org.apache.maven.plugins maven-javadoc-plugin * * * *
 org.apache.maven.plugins maven-jxr-plugin * * * *
 org.apache.maven.plugins maven-pmd-plugin * * * *
+org.apache.maven.plugins maven-project-info-reports-plugin * * * *
 org.apache.maven.plugins maven-scm-publish-plugin * * * *
 org.apache.maven.plugins maven-surefire-plugin * * * *
 org.apache.maven.plugins maven-surefire-report-plugin * * * *

@@ -1,6 +1,7 @@
 spatial4j-0.4 (0.4.1-4) UNRELEASED; urgency=medium
 
   * Team upload.
+  * Build with the DH sequencer instead of CDBS
   * Standards-Version updated to 3.9.7 (no changes)
 
  -- Emmanuel Bourg <ebourg@apache.org>  Tue, 16 Feb 2016 23:55:44 +0100
