@@ -1,23 +1,15 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+/*******************************************************************************
+ * Copyright (c) 2015 Voyager Search and MITRE
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Apache License, Version 2.0 which
+ * accompanies this distribution and is available at
+ *    http://www.apache.org/licenses/LICENSE-2.0.txt
+ ******************************************************************************/
 
 package com.spatial4j.core.shape.impl;
 
 import com.spatial4j.core.context.SpatialContext;
+import com.spatial4j.core.shape.BaseShape;
 import com.spatial4j.core.shape.Circle;
 import com.spatial4j.core.shape.Point;
 import com.spatial4j.core.shape.Rectangle;
@@ -30,9 +22,7 @@ import com.spatial4j.core.shape.SpatialRelation;
  * implementation should work for both cartesian 2D and geodetic sphere
  * surfaces.
  */
-public class CircleImpl implements Circle {
-
-  protected final SpatialContext ctx;
+public class CircleImpl extends BaseShape<SpatialContext> implements Circle {
 
   protected final Point point;
   protected double radiusDEG;
@@ -41,8 +31,8 @@ public class CircleImpl implements Circle {
   protected Rectangle enclosingBox;
 
   public CircleImpl(Point p, double radiusDEG, SpatialContext ctx) {
+    super(ctx);
     //We assume any validation of params already occurred (including bounding dist)
-    this.ctx = ctx;
     this.point = p;
     this.radiusDEG = point.isEmpty() ? Double.NaN : radiusDEG;
     this.enclosingBox = point.isEmpty() ? ctx.makeRectangle(Double.NaN, Double.NaN, Double.NaN, Double.NaN) :

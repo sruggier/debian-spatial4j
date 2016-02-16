@@ -1,53 +1,30 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+/*******************************************************************************
+ * Copyright (c) 2015 Voyager Search and MITRE
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Apache License, Version 2.0 which
+ * accompanies this distribution and is available at
+ *    http://www.apache.org/licenses/LICENSE-2.0.txt
+ ******************************************************************************/
 
 package com.spatial4j.core.shape.jts;
 
 import com.spatial4j.core.context.SpatialContext;
 import com.spatial4j.core.context.jts.JtsSpatialContext;
 import com.spatial4j.core.exception.InvalidShapeException;
-import com.spatial4j.core.shape.Circle;
+import com.spatial4j.core.shape.*;
 import com.spatial4j.core.shape.Point;
-import com.spatial4j.core.shape.Rectangle;
-import com.spatial4j.core.shape.Shape;
-import com.spatial4j.core.shape.SpatialRelation;
+import com.spatial4j.core.shape.impl.BBoxCalculator;
 import com.spatial4j.core.shape.impl.BufferedLineString;
 import com.spatial4j.core.shape.impl.PointImpl;
-import com.spatial4j.core.shape.impl.Range;
 import com.spatial4j.core.shape.impl.RectangleImpl;
-import com.vividsolutions.jts.geom.Coordinate;
-import com.vividsolutions.jts.geom.CoordinateSequence;
-import com.vividsolutions.jts.geom.CoordinateSequenceFilter;
-import com.vividsolutions.jts.geom.Envelope;
-import com.vividsolutions.jts.geom.Geometry;
-import com.vividsolutions.jts.geom.GeometryCollection;
-import com.vividsolutions.jts.geom.GeometryFilter;
-import com.vividsolutions.jts.geom.IntersectionMatrix;
-import com.vividsolutions.jts.geom.LineString;
-import com.vividsolutions.jts.geom.Lineal;
-import com.vividsolutions.jts.geom.LinearRing;
-import com.vividsolutions.jts.geom.Polygon;
-import com.vividsolutions.jts.geom.Puntal;
+import com.vividsolutions.jts.geom.*;
 import com.vividsolutions.jts.geom.prep.PreparedGeometry;
 import com.vividsolutions.jts.geom.prep.PreparedGeometryFactory;
 import com.vividsolutions.jts.operation.union.UnaryUnionOp;
 import com.vividsolutions.jts.operation.valid.IsValidOp;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -55,22 +32,25 @@ import java.util.List;
  * JTS does a great deal of the hard work, but there is work here in handling
  * dateline wrap.
  */
-public class JtsGeometry implements Shape {
+public class JtsGeometry extends BaseShape<JtsSpatialContext> {
   /** System property boolean that can disable auto validation in an assert. */
   public static final String SYSPROP_ASSERT_VALIDATE = "spatial4j.JtsGeometry.assertValidate";
 
   private final Geometry geom;//cannot be a direct instance of GeometryCollection as it doesn't support relate()
   private final boolean hasArea;
   private final Rectangle bbox;
-  protected final JtsSpatialContext ctx;
   protected PreparedGeometry preparedGeometry;
   protected boolean validated = false;
 
   public JtsGeometry(Geometry geom, JtsSpatialContext ctx, boolean dateline180Check, boolean allowMultiOverlap) {
-    this.ctx = ctx;
+    super(ctx);
     //GeometryCollection isn't supported in relate()
-    if (geom.getClass().equals(GeometryCollection.class))
-      throw new IllegalArgumentException("JtsGeometry does not support GeometryCollection but does support its subclasses.");
+    if (geom.getClass().equals(GeometryCollection.class)) {
+      geom = narrowCollectionIfPossible((GeometryCollection)geom);
+      if (geom == null) {
+        throw new IllegalArgumentException("JtsGeometry does not support GeometryCollection but does support its subclasses.");
+      }
+    }
 
     //NOTE: All this logic is fairly expensive. There are some short-circuit checks though.
     if (ctx.isGeo()) {
@@ -102,6 +82,26 @@ public class JtsGeometry implements Shape {
     assert assertValidate();//kinda expensive but caches valid state
 
     this.hasArea = !((geom instanceof Lineal) || (geom instanceof Puntal));
+  }
+
+  /**
+   * Attempts to retype a geometry collection under the following circumstances, returning
+   * null if the collection can not be retyped.
+   * <ul>
+   *    <li>Single object collections are collapsed down to the object.</li>
+   *    <li>Homogenous collections are recast as the appropriate subclass.</li>
+   * </ul>
+   *
+   * @see GeometryFactory#buildGeometry(Collection)
+   */
+  private Geometry narrowCollectionIfPossible(GeometryCollection gc) {
+    List<Geometry> geoms = new ArrayList<>();
+    for (int i = 0; i < gc.getNumGeometries(); i++) {
+      geoms.add(gc.getGeometryN(i));
+    }
+
+    Geometry result = gc.getFactory().buildGeometry(geoms);
+    return !result.getClass().equals(GeometryCollection.class) ? result : null;
   }
 
   /** called via assertion */
@@ -151,21 +151,16 @@ public class JtsGeometry implements Shape {
     if (geoms.isEmpty())
       return new RectangleImpl(Double.NaN, Double.NaN, Double.NaN, Double.NaN, ctx);
     final Envelope env = geoms.getEnvelopeInternal();//for minY & maxY (simple)
-    if (env.getWidth() > 180 && geoms.getNumGeometries() > 1)  {
+    if (ctx.isGeo() && env.getWidth() > 180 && geoms.getNumGeometries() > 1)  {
       // This is ShapeCollection's bbox algorithm
-      Range xRange = null;
+      BBoxCalculator bboxCalc = new BBoxCalculator(ctx);
       for (int i = 0; i < geoms.getNumGeometries(); i++ ) {
         Envelope envI = geoms.getGeometryN(i).getEnvelopeInternal();
-        Range xRange2 = new Range.LongitudeRange(envI.getMinX(), envI.getMaxX());
-        if (xRange == null) {
-          xRange = xRange2;
-        } else {
-          xRange = xRange.expandTo(xRange2);
-        }
-        if (xRange == Range.LongitudeRange.WORLD_180E180W)
+        bboxCalc.expandXRange(envI.getMinX(), envI.getMaxX());
+        if (bboxCalc.doesXWorldWrap())
           break; // can't grow any bigger
       }
-      return new RectangleImpl(xRange.getMin(), xRange.getMax(), env.getMinY(), env.getMaxY(), ctx);
+      return new RectangleImpl(bboxCalc.getMinX(), bboxCalc.getMaxX(), env.getMinY(), env.getMaxY(), ctx);
     } else {
       return new RectangleImpl(env.getMinX(), env.getMaxX(), env.getMinY(), env.getMaxY(), ctx);
     }
@@ -358,6 +353,8 @@ public class JtsGeometry implements Shape {
       }
     });//geom.apply()
 
+    if (crossings[0] > 0)
+      geom.geometryChanged();//applies to call component Geometries
     return crossings[0];
   }
 
@@ -377,7 +374,6 @@ public class JtsGeometry implements Shape {
           shiftGeomByX(innerLineString, 360);
         }
       }
-      poly.geometryChanged();
     }
     return cross;
   }
@@ -420,8 +416,6 @@ public class JtsGeometry implements Shape {
     //Unfortunately we are shifting again; it'd be nice to be smarter and shift once
     shiftGeomByX(lineString, shiftXPageMin * -360);
     int crossings = shiftXPageMax - shiftXPageMin;
-    if (crossings > 0)
-      lineString.geometryChanged();
     return crossings;
   }
 

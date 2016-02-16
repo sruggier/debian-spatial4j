@@ -1,26 +1,16 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+/*******************************************************************************
+ * Copyright (c) 2015 Voyager Search and MITRE
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Apache License, Version 2.0 which
+ * accompanies this distribution and is available at
+ *    http://www.apache.org/licenses/LICENSE-2.0.txt
+ ******************************************************************************/
 
 package com.spatial4j.core.shape;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.spatial4j.core.context.SpatialContext;
 import com.spatial4j.core.distance.DistanceUtils;
-import com.spatial4j.core.shape.impl.Range;
 
 import static com.spatial4j.core.shape.SpatialRelation.CONTAINS;
 import static com.spatial4j.core.shape.SpatialRelation.WITHIN;
@@ -61,22 +51,6 @@ public abstract class RandomizedShapeTest extends RandomizedTest {
         fail("Shape needs to define 'hashCode' : " + clazz.getName());
       }
     }
-  }
-
-  /**
-   * BUG FIX: https://github.com/carrotsearch/randomizedtesting/issues/131
-   *
-   * Returns a random value greater or equal to <code>min</code>. The value
-   * picked is affected by {@link #isNightly()} and {@link #multiplier()}.
-   *
-   * @see #scaledRandomIntBetween(int, int)
-   */
-  public static int atLeast(int min) {
-    if (min < 0) throw new IllegalArgumentException("atLeast requires non-negative argument: " + min);
-
-    min = (int) Math.min(min, (isNightly() ? 3 * min : min) * multiplier());
-    int max = (int) Math.min(Integer.MAX_VALUE, (long) min + (min / 2));
-    return randomIntBetween(min, max);
   }
 
   //These few norm methods normalize the arguments for creating a shape to
@@ -220,20 +194,23 @@ public abstract class RandomizedShapeTest extends RandomizedTest {
     if (nearP == null)
       nearP = randomPointIn(bounds);
 
-    Range xRange = randomRange(rarely() ? 0 : nearP.getX(), Range.xRange(bounds, ctx));
-    Range yRange = randomRange(rarely() ? 0 : nearP.getY(), Range.yRange(bounds, ctx));
+    double[] worldXRange = {bounds.getMinX(), bounds.getMaxX()};
+    double[] worldYRange = {bounds.getMinY(), bounds.getMaxY()};
+    double[] xRange = randomRange(rarely() ? 0 : nearP.getX(), worldXRange);
+    double[] yRange = randomRange(rarely() ? 0 : nearP.getY(), worldYRange);
 
     return makeNormRect(
-        divisible(xRange.getMin()),
-        divisible(xRange.getMax()),
-        divisible(yRange.getMin()),
-        divisible(yRange.getMax()) );
+        divisible(xRange[0]),
+        divisible(xRange[1]),
+        divisible(yRange[0]),
+        divisible(yRange[1]) );
   }
 
-  private Range randomRange(double near, Range bounds) {
-    double mid = near + randomGaussian() * bounds.getWidth() / 6;
-    double width = Math.abs(randomGaussian()) * bounds.getWidth() / 6;//1/3rd
-    return new Range(mid - width / 2, mid + width / 2);
+  private double[] randomRange(double near, double[] bounds) {
+    final double boundsWidth = bounds[1] - bounds[0];
+    double mid = near + randomGaussian() * boundsWidth / 6;
+    double width = Math.abs(randomGaussian()) * boundsWidth / 6;//1/3rd
+    return new double[]{mid - width / 2, mid + width / 2};
   }
 
   private double randomGaussianZeroTo(double max) {
@@ -288,7 +265,28 @@ public abstract class RandomizedShapeTest extends RandomizedTest {
     Point p;
     do {
       p = randomPointIn(bbox);
-    } while (!bbox.relate(p).intersects());
+    } while (!shape.relate(p).intersects());
     return p;
+  }
+
+  protected Point randomPointInOrNull(Shape shape) {
+    if (!shape.hasArea())// or try the center?
+      throw new UnsupportedOperationException("Need area to define shape!");
+    Rectangle bbox = shape.getBoundingBox();
+    for (int i = 0; i < 1000; i++) {
+      Point p = randomPointIn(bbox);
+      if (shape.relate(p).intersects()) {
+        return p;
+      }
+    }
+    return null;//tried too many times and failed
+  }
+
+  /** Tests that {@code left} >= {@code right}, but may be less if within some tolerance. */
+  public static void assertGreaterOrEqual(double left, double right, double delta) {
+    if (left > right) {
+      return;
+    }
+    assertEquals(left, right, delta);
   }
 }

@@ -1,33 +1,24 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+/*******************************************************************************
+ * Copyright (c) 2015 MITRE and VoyagerSearch
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Apache License, Version 2.0 which
+ * accompanies this distribution and is available at
+ *    http://www.apache.org/licenses/LICENSE-2.0.txt
+ ******************************************************************************/
 
 package com.spatial4j.core.context;
 
 import com.spatial4j.core.distance.CartesianDistCalc;
 import com.spatial4j.core.distance.DistanceCalculator;
 import com.spatial4j.core.distance.GeodesicSphereDistCalc;
-import com.spatial4j.core.io.BinaryCodec;
-import com.spatial4j.core.io.WktShapeParser;
+import com.spatial4j.core.io.*;
 import com.spatial4j.core.shape.Rectangle;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
-import java.util.Arrays;
-import java.util.Map;
+import java.util.*;
+
+//import org.slf4j.LoggerFactory;
 
 /**
  * Factory for a {@link SpatialContext} based on configuration data.  Call
@@ -49,6 +40,12 @@ import java.util.Map;
  * <DD>{@code ENVELOPE(xMin, xMax, yMax, yMin)} -- see {@link SpatialContext#getWorldBounds()}</DD>
  * <DT>normWrapLongitude</DT>
  * <DD>true | false (default) -- see {@link SpatialContext#isNormWrapLongitude()}</DD>
+ * <DT>readers</DT>
+ * <DD>Comma separated list of {@link com.spatial4j.core.io.ShapeReader} class names</DD>
+ * <DT>writers</DT>
+ * <DD>Comma separated list of {@link com.spatial4j.core.io.ShapeWriter} class names</DD>
+ * <DT>binaryCodecClass</DT>
+ * <DD>Java class of the {@link com.spatial4j.core.io.BinaryCodec}</DD>
  * </DL>
  */
 public class SpatialContextFactory {
@@ -65,9 +62,14 @@ public class SpatialContextFactory {
   public Rectangle worldBounds;//defaults in SpatialContext c'tor based on geo
 
   public boolean normWrapLongitude = false;
-  
-  public Class<? extends WktShapeParser> wktShapeParserClass = WktShapeParser.class;
+
   public Class<? extends BinaryCodec> binaryCodecClass = BinaryCodec.class;
+  public final List<Class<? extends ShapeReader>> readers = new ArrayList<Class<? extends ShapeReader>>();
+  public final List<Class<? extends ShapeWriter>> writers = new ArrayList<Class<? extends ShapeWriter>>();
+  public boolean hasFormatConfig = false;
+
+  public SpatialContextFactory() {
+  }
 
   /**
    * Creates a new {@link SpatialContext} based on configuration in
@@ -98,7 +100,7 @@ public class SpatialContextFactory {
         throw new RuntimeException(e);
       }
     }
-    instance.init(args,classLoader);
+    instance.init(args, classLoader);
     return instance.newSpatialContext();
   }
 
@@ -111,7 +113,7 @@ public class SpatialContextFactory {
     initCalculator();
 
     //init wktParser before worldBounds because WB needs to be parsed
-    initField("wktShapeParserClass");
+    initFormats();
     initWorldBounds();
 
     initField("normWrapLongitude");
@@ -174,11 +176,100 @@ public class SpatialContextFactory {
     }
   }
 
+  /**
+   * Check args for 'readers' and 'writers'.  The value should be a comma separated list
+   * of class names.
+   * 
+   * The legacy parameter 'wktShapeParserClass' is also supported to add a specific WKT prarser
+   */
+  protected void initFormats() {
+    try {
+      String val = args.get("readers");
+      if (val != null) {
+        for (String name : val.split(",")) {
+          readers.add(Class.forName(name.trim(), false, classLoader).asSubclass(ShapeReader.class));
+        }
+      } else {//deprecated; a parameter from when this was a raw class
+        val = args.get("wktShapeParserClass");
+        if (val != null) {
+          //LoggerFactory.getLogger(getClass()).warn("Using deprecated argument: wktShapeParserClass={}", val);
+          readers.add(Class.forName(val.trim(), false, classLoader).asSubclass(ShapeReader.class));
+        }
+      }
+      val = args.get("writers");
+      if (val != null) {
+        for (String name : val.split(",")) {
+          writers.add(Class.forName(name.trim(), false, classLoader).asSubclass(ShapeWriter.class));
+        }
+      }
+    } catch (ClassNotFoundException ex) {
+      throw new RuntimeException("Unable to find format class", ex);
+    }
+  }
+  
+
+  public SupportedFormats makeFormats(SpatialContext ctx) {
+    checkDefaultFormats();  // easy to override
+    
+    List<ShapeReader> read = new ArrayList<ShapeReader>(readers.size());
+    for (Class<? extends ShapeReader> clazz : readers) {
+      try {
+        read.add(makeClassInstance(clazz, ctx, this));
+      } catch (Exception ex) {
+        throw new RuntimeException(ex);
+      }
+    }
+    
+    List<ShapeWriter> write = new ArrayList<ShapeWriter>(writers.size());
+    for (Class<? extends ShapeWriter> clazz : writers) {
+      try {
+        write.add(makeClassInstance(clazz, ctx, this));
+      } catch (Exception ex) {
+        throw new RuntimeException(ex);
+      }
+    }
+    
+    return new SupportedFormats(
+        Collections.unmodifiableList(read), 
+        Collections.unmodifiableList(write));
+  }
+
+  /**
+   * If no formats were defined in the config, this will make sure GeoJSON and WKT are registered
+   */
+  protected void checkDefaultFormats() {
+    if (readers.isEmpty()) {
+      addReaderIfNoggitExists(GeoJSONReader.class);
+      readers.add(WKTReader.class);
+      readers.add(PolyshapeReader.class);
+      readers.add(LegacyShapeReader.class);
+    }
+    if (writers.isEmpty()) {
+      writers.add(GeoJSONWriter.class);
+      writers.add(WKTWriter.class);
+      writers.add(PolyshapeWriter.class);
+      writers.add(LegacyShapeWriter.class);
+    }
+  }
+
+  public void addReaderIfNoggitExists(Class<? extends ShapeReader> reader) {
+    try {
+      if (classLoader==null) {
+        Class.forName("org.noggit.JSONParser");
+      } else {
+        Class.forName("org.noggit.JSONParser", true, classLoader);
+      }
+      readers.add(reader);
+    } catch (ClassNotFoundException e) {
+      //LoggerFactory.getLogger(getClass()).warn("Unable to support GeoJSON Without Noggit");
+    }
+  }
+
   protected void initWorldBounds() {
     String worldBoundsStr = args.get("worldBounds");
     if (worldBoundsStr == null)
       return;
-    
+
     //kinda ugly we do this just to read a rectangle.  TODO refactor
     final SpatialContext ctx = newSpatialContext();
     worldBounds = (Rectangle) ctx.readShape(worldBoundsStr);//TODO use readShapeFromWkt
@@ -189,20 +280,22 @@ public class SpatialContextFactory {
     return new SpatialContext(this);
   }
 
-  public WktShapeParser makeWktShapeParser(SpatialContext ctx) {
-    return makeClassInstance(wktShapeParserClass, ctx, this);
-  }
-
   public BinaryCodec makeBinaryCodec(SpatialContext ctx) {
     return makeClassInstance(binaryCodecClass, ctx, this);
   }
 
+
   @SuppressWarnings("unchecked")
   private <T> T makeClassInstance(Class<? extends T> clazz, Object... ctorArgs) {
     try {
+      Constructor<?> empty = null;
+
       //can't simply lookup constructor by arg type because might be subclass type
       ctorLoop: for (Constructor<?> ctor : clazz.getConstructors()) {
         Class[] parameterTypes = ctor.getParameterTypes();
+        if (parameterTypes.length == 0) {
+          empty = ctor; // the empty constructor;
+        }
         if (parameterTypes.length != ctorArgs.length)
           continue;
         for (int i = 0; i < ctorArgs.length; i++) {
@@ -211,6 +304,11 @@ public class SpatialContextFactory {
             continue ctorLoop;
         }
         return clazz.cast(ctor.newInstance(ctorArgs));
+      }
+
+      // If an empty constructor exists, use that
+      if (empty != null) {
+        return clazz.cast(empty.newInstance());
       }
     } catch (Exception e) {
       throw new RuntimeException(e);

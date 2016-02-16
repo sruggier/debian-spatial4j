@@ -1,30 +1,17 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+/*******************************************************************************
+ * Copyright (c) 2015 Voyager Search and MITRE
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Apache License, Version 2.0 which
+ * accompanies this distribution and is available at
+ *    http://www.apache.org/licenses/LICENSE-2.0.txt
+ ******************************************************************************/
 
 package com.spatial4j.core.shape;
 
 import com.spatial4j.core.context.SpatialContext;
-import com.spatial4j.core.shape.impl.Range;
+import com.spatial4j.core.shape.impl.BBoxCalculator;
 
-import java.util.AbstractList;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.RandomAccess;
+import java.util.*;
 
 import static com.spatial4j.core.shape.SpatialRelation.CONTAINS;
 import static com.spatial4j.core.shape.SpatialRelation.INTERSECTS;
@@ -50,6 +37,7 @@ import static com.spatial4j.core.shape.SpatialRelation.INTERSECTS;
  */
 public class ShapeCollection<S extends Shape> extends AbstractList<S> implements Shape {
 
+  protected final SpatialContext ctx;
   protected final List<S> shapes;
   protected final Rectangle bbox;
 
@@ -62,28 +50,18 @@ public class ShapeCollection<S extends Shape> extends AbstractList<S> implements
     if (!(shapes instanceof RandomAccess))
       throw new IllegalArgumentException("Shapes arg must implement RandomAccess: "+shapes.getClass());
     this.shapes = shapes;
+    this.ctx = ctx;
     this.bbox = computeBoundingBox(shapes, ctx);
   }
 
   protected Rectangle computeBoundingBox(Collection<? extends Shape> shapes, SpatialContext ctx) {
     if (shapes.isEmpty())
       return ctx.makeRectangle(Double.NaN, Double.NaN, Double.NaN, Double.NaN);
-    Range xRange = null;
-    double minY = Double.POSITIVE_INFINITY;
-    double maxY = Double.NEGATIVE_INFINITY;
+    BBoxCalculator bboxCalc = new BBoxCalculator(ctx);
     for (Shape geom : shapes) {
-      Rectangle r = geom.getBoundingBox();
-
-      Range xRange2 = Range.xRange(r, ctx);
-      if (xRange == null) {
-        xRange = xRange2;
-      } else {
-        xRange = xRange.expandTo(xRange2);
-      }
-      minY = Math.min(minY, r.getMinY());
-      maxY = Math.max(maxY, r.getMaxY());
+      bboxCalc.expandRange(geom.getBoundingBox());
     }
-    return ctx.makeRectangle(xRange.getMin(), xRange.getMax(), minY, maxY);
+    return bboxCalc.getBoundary();
   }
 
   public List<S> getShapes() {
@@ -244,4 +222,8 @@ public class ShapeCollection<S extends Shape> extends AbstractList<S> implements
     return shapes.hashCode();
   }
 
+  @Override
+  public SpatialContext getContext() {
+    return ctx;
+  }
 }

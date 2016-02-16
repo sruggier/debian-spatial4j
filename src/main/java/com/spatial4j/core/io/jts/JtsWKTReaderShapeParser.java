@@ -1,19 +1,10 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+/*******************************************************************************
+ * Copyright (c) 2015 Voyager Search and MITRE
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Apache License, Version 2.0 which
+ * accompanies this distribution and is available at
+ *    http://www.apache.org/licenses/LICENSE-2.0.txt
+ ******************************************************************************/
 
 package com.spatial4j.core.io.jts;
 
@@ -31,7 +22,7 @@ import com.vividsolutions.jts.io.WKTReader;
 import java.text.ParseException;
 
 /**
- * This is an extension of {@link JtsWktShapeParser} that processes the entire
+ * This is an extension of {@link JtsWKTReader} that processes the entire
  * string with JTS's {@link com.vividsolutions.jts.io.WKTReader}.  Some differences:
  * <ul>
  *   <li>No support for ENVELOPE and BUFFER</li>
@@ -41,7 +32,7 @@ import java.text.ParseException;
  * </ul>
  *
  */
-public class JtsWKTReaderShapeParser extends JtsWktShapeParser {
+public class JtsWKTReaderShapeParser extends JtsWKTReader {
 
   //Note: Historically, the code here originated from the defunct JtsShapeReadWriter.
 
@@ -74,9 +65,9 @@ public class JtsWKTReaderShapeParser extends JtsWktShapeParser {
         else
           return ctx.makePoint(ptGeom.getX(), ptGeom.getY());
       } else if (geom.isRectangle()) {
-        return super.makeRectFromPoly(geom);
+        return super.ctx.makeRectFromRectangularPoly(geom);
       } else {
-        return super.makeShapeFromGeometry(geom);
+        return super.ctx.makeShapeFromGeometry(geom);
       }
     } catch (InvalidShapeException e) {
       throw e;

@@ -1,19 +1,10 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+/*******************************************************************************
+ * Copyright (c) 2015 Voyager Search and MITRE
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Apache License, Version 2.0 which
+ * accompanies this distribution and is available at
+ *    http://www.apache.org/licenses/LICENSE-2.0.txt
+ ******************************************************************************/
 
 package com.spatial4j.core.shape;
 
@@ -31,28 +22,74 @@ public abstract class RectIntersectionTestHelper<S extends Shape> extends Random
     super(ctx);
   }
 
+  /** Override to return true if generateRandomShape is essentially a Rectangle. */
+  protected boolean isRandomShapeRectangular() {
+    return false;
+  }
+
   protected abstract S generateRandomShape(Point nearP);
 
+  /** shape has no area; return a point in it */
   protected abstract Point randomPointInEmptyShape(S shape);
+
+  // Minimum distribution of relationships
+
+  // Each shape has different characteristics, so we don't expect (for instance) shapes that
+  // are likely to be long and thin to contain as many rectangles as those that
+  // short and fat.
+
+  protected int getContainsMinimum(int laps) {
+    return laps/1000;
+  }
+
+  protected int getIntersectsMinimum(int laps) {
+    return laps/1000;
+  }
+
+  protected int getWithinMinimum(int laps) {
+    return laps/1000;
+  }
+
+  protected int getDisjointMinimum(int laps) {
+    return laps/1000;
+  }
+
+  protected int getBoundingMinimum(int laps) {
+    return laps/1000;
+  }
 
   @SuppressWarnings("unchecked")
   @Override
-  protected Point randomPointIn(Shape shape) {
-    if (!shape.hasArea())
-      return randomPointInEmptyShape((S) shape);
-    return super.randomPointIn(shape);
+  protected Point randomPointInOrNull(Shape shape) {
+    if (!shape.hasArea()) {
+      final Point pt = randomPointInEmptyShape((S) shape);
+      assert shape.relate(pt).intersects() : "faulty randomPointInEmptyShape";
+      return pt;
+    }
+    return super.randomPointInOrNull(shape);
   }
 
   public void testRelateWithRectangle() {
     //counters for the different intersection cases
     int i_C = 0, i_I = 0, i_W = 0, i_D = 0, i_bboxD = 0;
     int laps = 0;
-    final int MINLAPSPERCASE = atLeast(20);
-    while(i_C < MINLAPSPERCASE || i_I < MINLAPSPERCASE || i_W < MINLAPSPERCASE
-        || i_D < MINLAPSPERCASE || i_bboxD < MINLAPSPERCASE) {
+    final int MINLAPS = scaledRandomIntBetween(20000, 200000);
+    while(i_C < getContainsMinimum(MINLAPS) || i_I < getIntersectsMinimum(MINLAPS) || i_W < getWithinMinimum(MINLAPS)
+            || (!isRandomShapeRectangular() && i_D < getDisjointMinimum(MINLAPS)) || i_bboxD < getBoundingMinimum(MINLAPS)) {
       laps++;
 
       TestLog.clear();
+
+      if (laps > MINLAPS) {
+        fail("Did not find enough contains/within/intersection/disjoint/bounds cases in a reasonable number" +
+                " of random attempts. CWIDbD: " +
+                i_C + "("+getContainsMinimum(MINLAPS)+")," +
+                i_W + "("+getWithinMinimum(MINLAPS)+")," +
+                i_I + "("+getIntersectsMinimum(MINLAPS)+")," +
+                i_D + "("+getDisjointMinimum(MINLAPS)+")," +
+                i_bboxD + "("+getBoundingMinimum(MINLAPS)+")"
+                + "  Laps exceeded " + MINLAPS);
+      }
 
       Point nearP = randomPointIn(ctx.getWorldBounds());
 
@@ -64,11 +101,17 @@ public abstract class RectIntersectionTestHelper<S extends Shape> extends Random
 
       TestLog.log("S-R Rel: {}, Shape {}, Rectangle {}", ic, s, r);
 
+      if (ic != DISJOINT) {
+        assertTrue("if not disjoint then the shape's bbox shouldn't be disjoint",
+                s.getBoundingBox().relate(r).intersects());
+      }
+
       try {
+        int MAX_TRIES = scaledRandomIntBetween(10, 100);
         switch (ic) {
           case CONTAINS:
             i_C++;
-            for (int j = 0; j < atLeast(10); j++) {
+            for (int j = 0; j < MAX_TRIES; j++) {
               Point p = randomPointIn(r);
               assertRelation(null, CONTAINS, s, p);
             }
@@ -76,8 +119,11 @@ public abstract class RectIntersectionTestHelper<S extends Shape> extends Random
 
           case WITHIN:
             i_W++;
-            for (int j = 0; j < atLeast(10); j++) {
-              Point p = randomPointIn(s);
+            for (int j = 0; j < MAX_TRIES; j++) {
+              Point p = randomPointInOrNull(s);
+              if (p == null) {//couldn't find a random point in shape
+                break;
+              }
               assertRelation(null, CONTAINS, r, p);
             }
             break;
@@ -85,12 +131,12 @@ public abstract class RectIntersectionTestHelper<S extends Shape> extends Random
           case DISJOINT:
             if (!s.getBoundingBox().relate(r).intersects()) {//bboxes are disjoint
               i_bboxD++;
-              if (i_bboxD > MINLAPSPERCASE)
+              if (i_bboxD >= getBoundingMinimum(MINLAPS))
                 break;
             } else {
               i_D++;
             }
-            for (int j = 0; j < atLeast(10); j++) {
+            for (int j = 0; j < MAX_TRIES; j++) {
               Point p = randomPointIn(r);
               assertRelation(null, DISJOINT, s, p);
             }
@@ -100,7 +146,7 @@ public abstract class RectIntersectionTestHelper<S extends Shape> extends Random
             i_I++;
             SpatialRelation pointR = null;//set once
             Rectangle randomPointSpace = null;
-            int MAX_TRIES = 1000;
+            MAX_TRIES = 1000;//give many attempts
             for (int j = 0; j < MAX_TRIES; j++) {
               Point p;
               if (j < 4) {
@@ -121,24 +167,19 @@ public abstract class RectIntersectionTestHelper<S extends Shape> extends Random
                 pointR = pointRNew;
               } else if (pointR != pointRNew) {
                 break;
-              } else if (j >= MAX_TRIES) {
-                //TODO consider logging instead of failing
-                fail("Tried intersection brute-force too many times without success");
               }
             }
 
             break;
 
           default: fail(""+ic);
-        }
+        } // switch
       } catch (AssertionError e) {
         onAssertFail(e, s, r, ic);
       }
-      if (laps > MINLAPSPERCASE * 1000)
-        fail("Did not find enough intersection cases in a reasonable number" +
-            " of random attempts. CWIDbD: "+i_C+","+i_W+","+i_I+","+i_D+","+i_bboxD
-            + "  Laps exceeded "+MINLAPSPERCASE * 1000);
-    }
+
+    } // while loop
+
     System.out.println("Laps: "+laps + " CWIDbD: "+i_C+","+i_W+","+i_I+","+i_D+","+i_bboxD);
   }
 

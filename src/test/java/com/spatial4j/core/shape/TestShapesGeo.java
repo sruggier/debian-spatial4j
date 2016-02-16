@@ -1,23 +1,15 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+/*******************************************************************************
+ * Copyright (c) 2015 MITRE
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Apache License, Version 2.0 which
+ * accompanies this distribution and is available at
+ *    http://www.apache.org/licenses/LICENSE-2.0.txt
+ ******************************************************************************/
 
 package com.spatial4j.core.shape;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import com.spatial4j.core.context.SpatialContext;
 import com.spatial4j.core.context.SpatialContextFactory;
 import com.spatial4j.core.context.jts.JtsSpatialContextFactory;
@@ -39,12 +31,11 @@ public class TestShapesGeo extends AbstractTestShapes {
 
   @ParametersFactory
   public static Iterable<Object[]> parameters() {
-
-    //TODO ENABLE LawOfCosines WHEN WORKING
-    //DistanceCalculator distCalcL = new GeodesicSphereDistCalc.Haversine(units.earthRadius());//default
+    final DistanceCalculator distCalcL = new GeodesicSphereDistCalc.LawOfCosines();
     final DistanceCalculator distCalcH = new GeodesicSphereDistCalc.Haversine();//default
     final DistanceCalculator distCalcV = new GeodesicSphereDistCalc.Vincenty();
     return Arrays.asList($$(
+        $(new SpatialContextFactory(){{geo = true; distCalc = new RoundingDistCalc(distCalcL);}}.newSpatialContext()),
         $(new SpatialContextFactory(){{geo = true; distCalc = new RoundingDistCalc(distCalcH);}}.newSpatialContext()),
         $(new SpatialContextFactory(){{geo = true; distCalc = new RoundingDistCalc(distCalcV);}}.newSpatialContext()),
         $(new JtsSpatialContextFactory(){{geo = true; distCalc = new RoundingDistCalc(distCalcH);}}.newSpatialContext()))
@@ -63,7 +54,7 @@ public class TestShapesGeo extends AbstractTestShapes {
     return DistanceUtils.dist2Degrees(km, DistanceUtils.EARTH_MEAN_RADIUS_KM);
   }
 
-  @Test
+  @Test @Repeat(iterations = 1)
   public void testGeoRectangle() {
     double v = 200 * (randomBoolean() ? -1 : 1);
     try { ctx.makeRectangle(v,0,0,0); fail(); } catch (InvalidShapeException e) {}
@@ -97,23 +88,26 @@ public class TestShapesGeo extends AbstractTestShapes {
       }
     }
 
-    TestShapes2D.testCircleReset(ctx);
-
     //Test geo rectangle intersections
     testRectIntersect();
 
+    //Ambiguous vertical line at dateline; -180 vs +180.  Bug #85
+    assertRelation(WITHIN, ctx.makeRectangle(-180, -180, -10, 10), ctx.makeRectangle(180, 180, -30, 30));
+
     //Test buffer
     assertEquals(ctx.makeRectangle(-10, 10, -10, 10), ctx.makeRectangle(0, 0, 0, 0).getBuffered(10, ctx));
-    for (int i = 0; i < atLeast(100); i++) {
+    int MAX_TRIES = scaledRandomIntBetween(100, 1000);
+    for (int i = 0; i < MAX_TRIES; i++) {
       Rectangle r = randomRectangle(1);
       int buf = randomIntBetween(0, 90);
       Rectangle br = (Rectangle) r.getBuffered(buf, ctx);
       assertRelation(null, CONTAINS, br, r);
-      if (r.getWidth() + 2 * buf >= 360)
+      if (r.getWidth() + 2 * buf >= 360) {
         assertEquals(360, br.getWidth(), 0.0);
-      else
-        assertTrue(br.getWidth() - r.getWidth() >= 2 * buf);
-      //TODO test more thoroughly; we don't check that we over-buf
+      } else {
+        assertGreaterOrEqual(br.getWidth() - r.getWidth(), 2 * buf, EPS);
+        //TODO test more thoroughly; we don't check that we over-buf
+      }
     }
     assertTrue(ctx.makeRectangle(0, 10, 0, 89).getBuffered(0.5, ctx).getBoundingBox().getWidth()
         > 11);
@@ -211,6 +205,9 @@ public class TestShapesGeo extends AbstractTestShapes {
         ctx.makeCircle(-64,32,180).relate(ctx.makeRectangle(47, 47, -14, 90)));
 
     //--Now proceed with systematic testing:
+
+    TestShapes2D.testCircleReset(ctx);
+
     assertEquals(ctx.getWorldBounds(), ctx.makeCircle(0,0,180).getBoundingBox());
     //assertEquals(ctx.makeCircle(0,0,180/2 - 500).getBoundingBox());
 

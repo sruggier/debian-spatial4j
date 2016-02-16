@@ -1,19 +1,10 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+/*******************************************************************************
+ * Copyright (c) 2015 Voyager Search and MITRE
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Apache License, Version 2.0 which
+ * accompanies this distribution and is available at
+ *    http://www.apache.org/licenses/LICENSE-2.0.txt
+ ******************************************************************************/
 
 package com.spatial4j.core.shape;
 
@@ -21,13 +12,10 @@ import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import com.spatial4j.core.context.jts.JtsSpatialContext;
 import com.spatial4j.core.context.jts.JtsSpatialContextFactory;
-import com.spatial4j.core.io.jts.JtsWktShapeParser;
 import com.spatial4j.core.shape.impl.PointImpl;
 import com.spatial4j.core.shape.jts.JtsGeometry;
-import com.vividsolutions.jts.geom.Coordinate;
-import com.vividsolutions.jts.geom.CoordinateFilter;
-import com.vividsolutions.jts.geom.Geometry;
-import com.vividsolutions.jts.geom.IntersectionMatrix;
+import com.vividsolutions.jts.geom.*;
+import io.jeo.geom.Geom;
 import org.junit.Test;
 
 import java.io.BufferedReader;
@@ -86,7 +74,7 @@ public class JtsGeometryTest extends AbstractTestShapes {
     testRelations(true);
   }
   public void testRelations(boolean prepare) throws ParseException {
-    assert !((JtsWktShapeParser)ctx.getWktShapeParser()).isAutoIndex();
+    assert !((JtsSpatialContext)ctx).isAutoIndex();
     //base polygon
     JtsGeometry base = (JtsGeometry) ctx.readShapeFromWkt("POLYGON((0 0, 10 0, 5 5, 0 0))");
     //shares only "10 0" with base
@@ -240,5 +228,49 @@ public class JtsGeometryTest extends AbstractTestShapes {
     } finally {
       is.close();
     }
+  }
+
+  @Test
+  public void testNarrowGeometryCollection() {
+    // test points
+    GeometryCollection gcol = Geom.build()
+      .point(1, 1).point()
+      .point(2, 3).point()
+      .toCollection();
+    assertFalse(gcol instanceof MultiPoint);
+
+    JtsGeometry geom = JtsSpatialContext.GEO.makeShape(gcol);
+    assertTrue(geom.getGeom() instanceof MultiPoint);
+
+    // test lines
+    gcol = Geom.build()
+      .point(1,1).point(2,2).lineString()
+      .point(3,3).point(4,4).lineString()
+      .toCollection();
+
+    geom = JtsSpatialContext.GEO.makeShape(gcol);
+    assertTrue(geom.getGeom() instanceof MultiLineString);
+
+    // test polygons
+    gcol = Geom.build()
+      .point(1,1).point().buffer(1)
+      .point(2,3).point().buffer(1)
+      .toCollection();
+
+    geom = JtsSpatialContext.GEO.makeShape(gcol);
+    assertTrue(geom.getGeom() instanceof MultiPolygon);
+
+    // test heterogenous
+    gcol = Geom.build()
+        .point(0,0).point()
+        .point(1,1).point(2,2).lineString()
+        .toCollection();
+    try {
+      JtsSpatialContext.GEO.makeShape(gcol);
+      fail("heterogenous geometry collection should throw exception");
+    }
+    catch(IllegalArgumentException expected) {
+    }
+
   }
 }
