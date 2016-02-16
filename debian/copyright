@@ -1,17 +1,17 @@
 Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: Spatial4J
-Source: http://spatial4j.com
+Source: https://github.com/locationtech/spatial4j
 
 Files: *
-Copyright: 2013, whoever holds the copyright
+Copyright: 2014-2015, Ryan McKinley
+           2014-2016, David Smiley
+           2015-2016, Justin Deoliveira
 License: Apache-2.0
 
 Files: debian/*
-Copyright: 2014, Hilko Bengen <bengen@debian.org>
+Copyright: 2014-2015, Hilko Bengen <bengen@debian.org>
 License: Apache-2.0
 
 License: Apache-2.0
  On Debian systems, the full text of the Apache-2.0 license
  can be found in the file '/usr/share/common-licenses/Apache-2.0'
-
-
