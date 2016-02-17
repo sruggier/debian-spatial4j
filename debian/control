@@ -21,7 +21,7 @@ Homepage: https://github.com/locationtech/spatial4j
 Package: libspatial4j-java
 Architecture: all
 Depends: ${misc:Depends}, ${maven:Depends}
-Recommends: ${maven:OptionalDepends}
+Suggests: ${maven:OptionalDepends}
 Description: spatial/geospatial Java library
  Spatial4j is a general purpose spatial / geospatial Java library.
  It's core capabilities are 3-fold: to provide common

@@ -5,6 +5,7 @@ spatial4j (0.5-1) UNRELEASED; urgency=medium
     - New dependency on libnoggit-java
     - Disabled the unit tests (missing io.jeo:jeo dependency)
   * Renamed the package back to spatial4j
+  * Suggest the optional dependencies instead of recommending them
 
  -- Emmanuel Bourg <ebourg@apache.org>  Wed, 17 Feb 2016 00:43:42 +0100
 
