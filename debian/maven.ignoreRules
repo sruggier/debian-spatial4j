@@ -9,3 +9,4 @@ org.apache.maven.plugins maven-scm-publish-plugin * * * *
 org.apache.maven.plugins maven-surefire-plugin * * * *
 org.apache.maven.plugins maven-surefire-report-plugin * * * *
 org.codehaus.mojo findbugs-maven-plugin * * * *
+org.jacoco jacoco-maven-plugin * * * *
