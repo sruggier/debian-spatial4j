@@ -10,6 +10,7 @@ Build-Depends: debhelper (>= 9),
                libjts-java (>= 1.13),
                libmaven-bundle-plugin-java,
                libmaven-install-plugin-java,
+               libnoggit-java,
                libslf4j-java,
                maven-debian-helper (>= 1.6.5)
 Standards-Version: 3.9.7
