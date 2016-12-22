@@ -1,2 +1,3 @@
 
 junit junit * s/.*/4.x/ * *
+com.vividsolutions s/jts-core/jts/ * s/.*/debian/ * *
